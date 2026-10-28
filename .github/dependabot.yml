@@ -1,0 +1,15 @@
+# Keeps pinned action SHAs and Rust dependencies current. Updates arrive as
+# PRs and go through the same CI and review as any other change.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      soroban:
+        patterns: ["soroban-*"]
