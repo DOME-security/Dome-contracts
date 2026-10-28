@@ -1,0 +1,12 @@
+{
+  "name": "dome-bindgen",
+  "private": true,
+  "description": "Pinned TypeScript bindings generator for scripts/bindings.sh. Install with: npm ci --ignore-scripts",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "17.2.1"
+  }
+}
