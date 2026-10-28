@@ -340,6 +340,24 @@ impl DomeRegistry {
     pub fn indicator(env: Env, hash: BytesN<32>) -> Option<Indicator> {
         storage::indicator(&env, &hash)
     }
+
+    // ------------------------------------------------------------------ TTL
+
+    /// Keeps a repo's newest attestation and its history count from being
+    /// archived. Anyone may call it and pay the fee; older history entries
+    /// are left to expire and can be restored. Returns false for an unknown
+    /// repo.
+    pub fn extend_repo(env: Env, repo: BytesN<32>) -> bool {
+        storage::extend_instance(&env);
+        storage::extend_repo(&env, &repo)
+    }
+
+    /// Keeps an indicator from being archived. Anyone may call it. Returns
+    /// false for an unknown hash.
+    pub fn extend_indicator(env: Env, hash: BytesN<32>) -> bool {
+        storage::extend_instance(&env);
+        storage::extend_indicator(&env, &hash)
+    }
 }
 
 impl DomeRegistry {

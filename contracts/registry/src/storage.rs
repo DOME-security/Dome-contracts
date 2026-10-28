@@ -10,6 +10,11 @@ pub const MIN_THRESHOLD: u32 = 2;
 /// Largest page returned by `history`.
 pub const MAX_PAGE: u32 = 50;
 
+// TTL policy: every write extends the entries it touches, and anyone can pay
+// to keep an entry alive with `extend_repo` / `extend_indicator`. Reads never
+// extend, so checking the registry costs nothing beyond simulation. Archived
+// entries are restored automatically by the network when next accessed.
+
 /// ~5 second ledgers.
 const DAY_IN_LEDGERS: u32 = 17_280;
 /// Entries are extended once their remaining TTL drops below this...
@@ -133,4 +138,26 @@ pub fn set_indicator(env: &Env, i: &Indicator) {
     let key = DataKey::Indicator(i.hash.clone());
     env.storage().persistent().set(&key, i);
     extend(env, &key);
+}
+
+/// Extends the count and the newest attestation for a repo. Returns false if
+/// the repo has no attestations.
+pub fn extend_repo(env: &Env, repo: &BytesN<32>) -> bool {
+    let n = attest_count(env, repo);
+    if n == 0 {
+        return false;
+    }
+    extend(env, &DataKey::AttestCount(repo.clone()));
+    extend(env, &DataKey::Attest(repo.clone(), n - 1));
+    true
+}
+
+/// Returns false if there is no such indicator.
+pub fn extend_indicator(env: &Env, hash: &BytesN<32>) -> bool {
+    let key = DataKey::Indicator(hash.clone());
+    if !env.storage().persistent().has(&key) {
+        return false;
+    }
+    extend(env, &key);
+    true
 }
