@@ -44,11 +44,11 @@ contracts/
 bindings/
 └── ts/               Generated TypeScript client (@dome-security/registry-bindings), checked for staleness in CI
 
-scripts/              Testnet deploy, upgrade, seed (inert demo data) and bindings generation
+scripts/              Testnet deploy, upgrade, seed and bindings generation
+└── fixtures/         Inert look-alike files used for demo indicators (`echo DOME_FIXTURE`)
 
 tools/
 └── bindgen/          Pinned bindings generator (@stellar/stellar-sdk `stellar-js generate`, lockfile, installed with --ignore-scripts)
-└── fixtures/         Inert look-alike files used for demo indicators (`echo DOME_FIXTURE`)
 
 docs/                 Threat model and publication policy
 
@@ -211,7 +211,7 @@ dome-backend ──────────────────────�
 **[dome-backend](https://github.com/DOME-security/Dome-backend)**
 
 - *Sends to this repo's contract:* `attest` calls after release scans, signed by an attester key the admin registered, and `retract_attestation` for its own mistaken results. The backend holds `block` results for someone else's repository until the notice period in the publication policy has passed.
-- *Receives from it:* active indicators via `is_known_bad` / `indicator`, which it pulls into the scanner (`dome intel update`), and every contract event, which its indexer stores for fast reads and as a full history if entries are archived.
+- *Receives from it:* active indicators via `is_known_bad` / `indicator`, which it pulls into the scanner (`dome intel update`, planned in the CLI), and every contract event, which its indexer stores for fast reads and as a full history if entries are archived.
 - *Calls `extend_repo` / `extend_indicator`* for entries that are still in use.
 
 **[dome-frontend](https://github.com/DOME-security/Dome-frontend)**
