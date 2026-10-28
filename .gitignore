@@ -1,0 +1,17 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Soroban test snapshots are regenerated on every test run
+**/test_snapshots/
+
+# Node (bindings)
+node_modules/
+bindings/ts/dist/
+
+# Secrets and Stellar identities: never commit these
+.env
+.env.*
+.stellar/
+*.key
+identity/

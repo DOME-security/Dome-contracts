@@ -1,0 +1,19 @@
+[package]
+name = "dome-registry"
+version = "0.1.0"
+description = "Dome Registry: scan attestations and malicious-file indicators on Stellar"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
