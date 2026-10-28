@@ -17,6 +17,8 @@ require_var ADMIN
 THRESHOLD="${THRESHOLD:-2}"
 
 ensure_wasm
+# SOURCE comes from the environment and is checked by require_var above.
+# shellcheck disable=SC2153
 stellar contract deploy \
   --wasm "$WASM" \
   --source-account "$SOURCE" \

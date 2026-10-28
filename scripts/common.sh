@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared helpers for the deploy scripts. Source it, don't run it.
 #
 # Every script talks to the network through the Stellar CLI and signs with a
