@@ -37,9 +37,9 @@ Status: draft for the v1 contract (`contracts/registry`). It is input for the in
 
 *Attack:* publish `clean` for an infected repo, or `block` for a healthy one.
 
-*Mitigations:* only addresses the admin added can attest; every attestation records its attester; history is append-only, so later correct attestations don't hide the bad ones; the admin can remove the attester at once.
+*Mitigations:* only addresses the admin added can attest; every attestation records its attester; history is append-only, so later correct attestations don't hide the bad ones; the admin can remove the attester at once and `retract_attestation` its false attestations, which stay visible with the admin as `retracted_by`. A removed attester can no longer retract its own entries.
 
-*Residual risk:* the contract does not yet support retracting an attestation (planned). Readers should treat `latest` as one attester's claim and show who signed it.
+*Residual risk:* `latest` returns the newest attestation even when it is retracted. Readers must check `retracted_by`, and should treat `latest` as one attester's claim and show who signed it.
 
 ### Compromised or careless admin
 

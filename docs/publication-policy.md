@@ -6,7 +6,7 @@ Saying "this repository is infected" in public, permanently, can hurt the mainta
 |---|---|---|
 | 1 | **Indicators describe files, not people.** An indicator is the SHA-256 of a file plus a `kind`, a `campaign` label and an evidence hash. It never names an account or a committer. | Contract: the `Indicator` type has no field for a person. `kind` must be one of `task`, `font`, `config`, `script`, `package`. |
 | 2 | **`block` attestations about someone else's repository** are published only after its maintainers have been notified privately and given time to respond (default 72 hours), unless the payload is actively spreading. | Process: attesters (the Dome backend) hold `block` results until the notice period ends. |
-| 3 | **Every entry can be retracted**, and a retraction is as visible as the original. | Contract for indicators: `retract` keeps the entry and records the curator and a reason hash. Attestation retraction is planned. Until then, a correction is a new attestation for the same commit. |
+| 3 | **Every entry can be retracted**, and a retraction is as visible as the original. | Contract: `retract` (indicators) and `retract_attestation` (attestations) keep the entry and record who retracted it and a reason hash. Nothing is deleted. |
 | 4 | **Only public repositories.** Private repository names are never written, even hashed, because a hash of a known name is easy to reverse. | Process: the backend only attests repositories it can read anonymously. |
 | 5 | A `clean` attestation always means "no known pattern found at this commit with this rule set", never "safe". | Process and UI: `dome-frontend` shows the rule-set hash and scanner version next to every verdict. |
 

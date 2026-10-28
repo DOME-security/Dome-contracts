@@ -12,15 +12,15 @@ Part of the Dome Security org, alongside [dome-backend](https://github.com/DOME-
 
 - **Scan attestations:** attesters publish signed results of a scan of one commit (`clean`, `review`, `block` or `unreadable`), together with the scanner version, a hash of the rule set used, and a hash of the full off-chain report. History is append-only: `latest` returns the newest result and `history` pages through all of them.
 - **Malicious-file indicators:** curators propose SHA-256 fingerprints of malicious files (`task`, `font`, `config`, `script` or `package`). An indicator turns `active` only after **M-of-N curator approvals** (M ≥ 2), so one compromised curator key cannot poison the list. `is_known_bad(hash)` is the one-call check for other contracts and apps.
-- **Visible retractions:** any curator can retract an indicator. The entry stays readable with status `retracted`, the curator who retracted it and a hash of the public reason, so mistakes stay visible instead of disappearing.
-- **Events for every write:** `attest`, `propose`, `approve`, `retract`, `role_granted`, `role_revoked`, `admin_changed`, `threshold_changed` and `upgraded`, so the backend indexer can follow the registry without polling storage.
+- **Visible retractions:** any curator can retract an indicator, and an attestation can be retracted by its attester or the admin. The entry stays readable with who retracted it and a hash of the public reason, so mistakes stay visible instead of disappearing.
+- **Events for every write:** `attest`, `retract_attest`, `propose`, `approve`, `retract`, `role_granted`, `role_revoked`, `admin_changed`, `threshold_changed` and `upgraded`, so the backend indexer can follow the registry without polling storage.
 - **TTL management:** writes extend the entries they touch to 120 days, and anyone can pay to keep a repo's newest attestation or an indicator alive with `extend_repo` / `extend_indicator`.
 - **Optional by design:** the Dome CLI and GitHub Action work fully offline. The registry adds shared, verifiable history on top, at the cost of network fees and a funded account for writers.
 - **No personal data:** only hashes, short codes, addresses and timestamps. See [`docs/publication-policy.md`](docs/publication-policy.md).
 
 ## Status
 
-Pre-alpha, **testnet only** until the contract has been independently reviewed. The contract core and indicator flow (milestones M1 and M2) are implemented and covered by 41 unit tests, including the allowed and rejected path of every `require_auth`. The deploy scripts refuse any network other than testnet, futurenet or local. Generated TypeScript bindings and the first testnet deployment are next. See [Roadmap](#roadmap).
+Pre-alpha, **testnet only** until the contract has been independently reviewed. The contract core, indicator flow and attestation retraction are implemented and covered by 49 unit tests, including the allowed and rejected path of every `require_auth`. The deploy scripts refuse any network other than testnet, futurenet or local. Generated TypeScript bindings and the first testnet deployment are next. See [Roadmap](#roadmap).
 
 ## Architecture
 
@@ -118,6 +118,8 @@ The contract design (storage model, roles and interface) is documented below, wi
 | `report` | `BytesN<32>` | SHA-256 of the full JSON report (stored off-chain) |
 | `attester` | `Address` | Who signed it |
 | `at` | `u64` | Ledger timestamp |
+| `retracted_by` | `Option<Address>` | Attester or admin who retracted it |
+| `retract_reason` | `Option<BytesN<32>>` | Hash of the public retraction notice |
 
 **Indicator**: a fingerprint of a file confirmed as malicious.
 
@@ -137,9 +139,9 @@ The contract design (storage model, roles and interface) is documented below, wi
 
 | Role | Can | Set by |
 |---|---|---|
-| **Admin** | Add and remove curators and attesters, set the approval threshold, hand over the admin role (both sides sign), upgrade the contract | Constructor; a multisig Stellar account, never a single key |
+| **Admin** | Add and remove curators and attesters, set the approval threshold, hand over the admin role (both sides sign), retract any attestation, upgrade the contract | Constructor; a multisig Stellar account, never a single key |
 | **Curator** | Propose, approve and retract indicators | Admin |
-| **Attester** | Publish scan attestations | Admin (v1); repo self-attestation planned (v2) |
+| **Attester** | Publish scan attestations and retract its own | Admin (v1); repo self-attestation planned (v2) |
 | **Anyone** | Read everything, pay to extend TTLs | — |
 
 **Interface** (`contracts/registry/src/lib.rs`):
@@ -164,6 +166,7 @@ fn attest(env: Env, attester: Address, a: AttestationInput) -> Result<u32, Error
 fn latest(env: Env, repo: BytesN<32>) -> Option<Attestation>;
 fn attestation_count(env: Env, repo: BytesN<32>) -> u32;
 fn history(env: Env, repo: BytesN<32>, start: u32, limit: u32) -> Result<Vec<Attestation>, Error>; // limit 1..=50
+fn retract_attestation(env: Env, by: Address, repo: BytesN<32>, index: u32, reason: BytesN<32>) -> Result<(), Error>; // its attester or admin
 
 // indicators
 fn propose(env: Env, curator: Address, i: IndicatorInput) -> Result<(), Error>;
@@ -221,12 +224,12 @@ Milestones from the original specification, compared with the code in this repo:
 
 - [x] **M1 Contract core:** roles, attestations, `latest`, `history`, events, unit tests (constructor instead of a separate `init`, so setup can't be front-run)
 - [x] **M2 Indicators:** propose/approve/retract with M-of-N threshold, `is_known_bad`
+- [x] Attestation retraction by the attester or the admin, so every entry can be retracted visibly
 - [x] TTL extension strategy for active entries (`extend_repo`, `extend_indicator`) and docs
 - [x] `docs/threat-model.md` and `docs/publication-policy.md`
 - [x] CI: hygiene checks, lint, tests, Wasm build with Stellar CLI, upgrade test against real Wasm
 - [x] Testnet deploy, upgrade and seed scripts with inert demo indicators
 - [ ] **M3 Bindings + testnet** (in progress): `scripts/bindings.sh` and the CI staleness check exist. Still to do: commit generated `bindings/ts`, publish `@dome-security/registry-bindings`, first testnet deployment with a published contract id
-- [ ] Attestation retraction, so attestations follow the "every entry can be retracted" rule like indicators (new)
 - [ ] M-of-N approval for retracting `active` indicators (new, from the threat model)
 - [ ] Upgrade timelock or upgrade limits, to discuss in review (new)
 - [ ] **M4 Integration:** backend indexer and attestation publishing, frontend explorer and curator console (work happens in dome-backend and dome-frontend)
