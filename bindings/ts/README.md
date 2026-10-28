@@ -1,6 +1,6 @@
 # @dome-security/registry-bindings
 
-TypeScript client for the Dome Registry contract, generated from the contract spec by `scripts/bindings.sh` in [DOME-security/Dome-contracts](https://github.com/DOME-security/Dome-contracts). **Do not edit by hand.** Regenerate with `make bindings` and commit the result. CI fails if these files are stale.
+TypeScript client for the Dome Registry contract, generated from the contract spec by `scripts/bindings.sh` (using the pinned `stellar-js generate` in `tools/bindgen`) in [DOME-security/Dome-contracts](https://github.com/DOME-security/Dome-contracts). **Do not edit by hand.** Regenerate with `make bindings` and commit the result. CI fails if these files are stale.
 
 ## Use
 
@@ -14,6 +14,7 @@ const registry = new Client({
 });
 
 // Reads are simulated: no fees, no signature.
+// Byte arguments are Uint8Array; a Node Buffer works too.
 const { result: bad } = await registry.is_known_bad({ hash: Buffer.from(sha256Hex, "hex") });
 const { result: last } = await registry.latest({ repo: repoIdHash });
 if (last && last.retracted_by) {
@@ -22,6 +23,8 @@ if (last && last.retracted_by) {
 ```
 
 Writes (`attest`, `propose`, `approve`, `retract`, `retract_attestation`, …) return an `AssembledTransaction` to sign with the role holder's wallet and send.
+
+For indexers, `registry.parseEvent(topics, data)` decodes a raw contract event into a typed event, and filters such as `registry.attestedEventFilter({ verdict: "block" })` build topic filters for `server.getEvents`.
 
 ## Install
 
