@@ -36,6 +36,7 @@ generate() {
   # The generated README suggests regenerating in a postinstall hook, which
   # Dome forbids. Replace it with ours.
   cp "$ROOT/scripts/bindings-readme.md" "$dir/README.md"
+  rm -f "$dir/.gitignore"
 }
 
 if [[ "${1:-}" == "--check" ]]; then
@@ -44,7 +45,9 @@ if [[ "${1:-}" == "--check" ]]; then
   trap 'rm -rf "$tmp"' EXIT
   # The CLI derives the package name from the folder name, so mirror ours.
   generate "$tmp/ts"
-  if ! diff -r --exclude node_modules --exclude dist "$OUT" "$tmp/ts"; then
+  # The CLI also writes a .gitignore for node_modules and dist; the root
+  # .gitignore already covers both, so it isn't committed or compared.
+  if ! diff -r --exclude node_modules --exclude dist --exclude .gitignore "$OUT" "$tmp/ts"; then
     die "bindings/ts is stale; run ./scripts/bindings.sh and commit the result"
   fi
   echo "bindings/ts is up to date"
