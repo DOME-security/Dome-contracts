@@ -34,7 +34,11 @@ jobs:
           if git ls-files | grep -E '(^|/)\.env(\..*)?$|(^|/)\.stellar/|(^|/)identity/.*\.toml$|\.key$'; then
             echo "::error::secrets, .env or Stellar identity files are committed"; fail=1
           fi
-          if git ls-files -z '*package.json' | xargs -0 -r grep -lE '"(preinstall|install|postinstall|prepare)"[[:space:]]*:'; then
+          # Test grep's output, not xargs' status: with no package.json at
+          # all, xargs -r runs nothing and still exits 0.
+          scripts="$(git ls-files -z '*package.json' | xargs -0 -r grep -lE '"(preinstall|install|postinstall|prepare)"[[:space:]]*:' || true)"
+          if [[ -n "$scripts" ]]; then
+            echo "$scripts"
             echo "::error::npm install lifecycle scripts are not allowed"; fail=1
           fi
           exit $fail
