@@ -7,19 +7,31 @@
 #
 # Bindings are generated from the built Wasm, so no network or contract id
 # is needed. Run `stellar contract build` first.
+#
+# The generator is the `stellar-js generate` CLI from @stellar/stellar-sdk,
+# pinned in tools/bindgen with a lockfile. It replaces the deprecated
+# `stellar contract bindings typescript`. Needs Node 22.12+.
 
 # shellcheck source=scripts/common.sh
 source "$(dirname "$0")/common.sh"
 
-require_stellar
 [[ -f "$WASM" ]] || die "$WASM not found; run 'stellar contract build' first"
+command -v node >/dev/null || die "node not found; Node 22.12+ is needed to generate bindings"
 
 OUT="$ROOT/bindings/ts"
 PACKAGE="@dome-security/registry-bindings"
+BINDGEN="$ROOT/tools/bindgen"
+GENERATOR="$BINDGEN/node_modules/.bin/stellar-js"
+
+# Install the pinned generator from the lockfile. --ignore-scripts: no
+# dependency gets to run code at install time.
+if [[ ! -x "$GENERATOR" ]]; then
+  (cd "$BINDGEN" && npm ci --ignore-scripts --no-audit --no-fund)
+fi
 
 generate() {
   local dir="$1"
-  stellar contract bindings typescript --wasm "$WASM" --output-dir "$dir" --overwrite >/dev/null
+  "$GENERATOR" generate --wasm "$WASM" --output-dir "$dir" --contract-name dome-registry --overwrite >/dev/null
   # Set the package name and drop any npm lifecycle scripts: consumers must
   # be able to install with --ignore-scripts and lose nothing.
   node -e '
@@ -33,8 +45,8 @@ generate() {
     }
     fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
   ' "$dir" "$PACKAGE"
-  # The generated README suggests regenerating in a postinstall hook, which
-  # Dome forbids. Replace it with ours.
+  # Ship our own README, and drop the generated .gitignore: the root
+  # .gitignore already covers bindings/ts/node_modules and dist.
   cp "$ROOT/scripts/bindings-readme.md" "$dir/README.md"
   rm -f "$dir/.gitignore"
 }
@@ -43,15 +55,14 @@ if [[ "${1:-}" == "--check" ]]; then
   [[ -d "$OUT" ]] || die "bindings/ts has not been generated yet; run ./scripts/bindings.sh"
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  # The CLI derives the package name from the folder name, so mirror ours.
   generate "$tmp/ts"
-  # The CLI also writes a .gitignore for node_modules and dist; the root
-  # .gitignore already covers both, so it isn't committed or compared.
-  if ! diff -r --exclude node_modules --exclude dist --exclude .gitignore "$OUT" "$tmp/ts"; then
+  if ! diff -r --exclude node_modules --exclude dist "$OUT" "$tmp/ts"; then
     die "bindings/ts is stale; run ./scripts/bindings.sh and commit the result"
   fi
   echo "bindings/ts is up to date"
 else
+  # Start clean so files the generator no longer writes don't linger.
+  rm -rf "$OUT"
   generate "$OUT"
   echo "generated $PACKAGE in bindings/ts"
 fi
