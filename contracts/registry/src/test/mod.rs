@@ -2,11 +2,12 @@
 //! for the allowed path and for the rejected path.
 
 mod attestations;
+mod indicators;
 mod roles;
 
 use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, Symbol};
 
-use crate::{AttestationInput, DomeRegistry, DomeRegistryClient};
+use crate::{AttestationInput, DomeRegistry, DomeRegistryClient, IndicatorInput};
 
 pub struct Setup<'a> {
     pub env: Env,
@@ -40,5 +41,16 @@ pub fn attestation_input(env: &Env, seed: u8, verdict: &str) -> AttestationInput
         scanner: 1,
         rules: BytesN::from_array(env, &[0x11; 32]),
         report: BytesN::from_array(env, &[0x22; 32]),
+    }
+}
+
+/// An indicator for an inert test file. `seed` stands in for the SHA-256 of a
+/// harmless fixture such as `echo DOME_FIXTURE`; no real sample is involved.
+pub fn indicator_input(env: &Env, seed: u8) -> IndicatorInput {
+    IndicatorInput {
+        hash: BytesN::from_array(env, &[seed; 32]),
+        kind: Symbol::new(env, "task"),
+        campaign: Symbol::new(env, "unknown"),
+        evidence: BytesN::from_array(env, &[0x33; 32]),
     }
 }
