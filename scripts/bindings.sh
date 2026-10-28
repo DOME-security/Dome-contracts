@@ -42,8 +42,9 @@ if [[ "${1:-}" == "--check" ]]; then
   [[ -d "$OUT" ]] || die "bindings/ts has not been generated yet; run ./scripts/bindings.sh"
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  generate "$tmp"
-  if ! diff -r --exclude node_modules --exclude dist "$OUT" "$tmp"; then
+  # The CLI derives the package name from the folder name, so mirror ours.
+  generate "$tmp/ts"
+  if ! diff -r --exclude node_modules --exclude dist "$OUT" "$tmp/ts"; then
     die "bindings/ts is stale; run ./scripts/bindings.sh and commit the result"
   fi
   echo "bindings/ts is up to date"
