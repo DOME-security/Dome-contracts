@@ -1,11 +1,12 @@
 //! Unit tests using `soroban-sdk` testutils. Every `require_auth` has a test
 //! for the allowed path and for the rejected path.
 
+mod attestations;
 mod roles;
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, Symbol};
 
-use crate::{DomeRegistry, DomeRegistryClient};
+use crate::{AttestationInput, DomeRegistry, DomeRegistryClient};
 
 pub struct Setup<'a> {
     pub env: Env,
@@ -28,4 +29,16 @@ pub fn setup_mocked<'a>() -> Setup<'a> {
     let s = setup();
     s.env.mock_all_auths();
     s
+}
+
+/// A well-formed attestation for repo id `seed` with a SHA-1 commit.
+pub fn attestation_input(env: &Env, seed: u8, verdict: &str) -> AttestationInput {
+    AttestationInput {
+        repo: BytesN::from_array(env, &[seed; 32]),
+        commit: Bytes::from_array(env, &[0xc0; 20]),
+        verdict: Symbol::new(env, verdict),
+        scanner: 1,
+        rules: BytesN::from_array(env, &[0x11; 32]),
+        report: BytesN::from_array(env, &[0x22; 32]),
+    }
 }
