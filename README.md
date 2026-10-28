@@ -20,7 +20,13 @@ Part of the Dome Security org, alongside [dome-backend](https://github.com/DOME-
 
 ## Status
 
-Pre-alpha, **testnet only** until the contract has been independently reviewed. The contract core, indicator flow and attestation retraction are implemented and covered by 49 unit tests, including the allowed and rejected path of every `require_auth`. The deploy scripts refuse any network other than testnet, futurenet or local. Generated TypeScript bindings and the first testnet deployment are next. See [Roadmap](#roadmap).
+Pre-alpha, **testnet only** until the contract has been independently reviewed. The contract core, indicator flow and attestation retraction are implemented and covered by 49 unit tests, including the allowed and rejected path of every `require_auth`. The deploy scripts refuse any network other than testnet, futurenet or local. The generated TypeScript bindings are committed, and the registry is live on testnet. See [Roadmap](#roadmap).
+
+| Network | Contract id | Admin | Threshold |
+|---|---|---|---|
+| Testnet | [`CCHLCPUBLL4ROEFP5PR3JY4LUB32TLNB2KDF3DQLG3R53IK5OUW7TZUY`](https://stellar.expert/explorer/testnet/contract/CCHLCPUBLL4ROEFP5PR3JY4LUB32TLNB2KDF3DQLG3R53IK5OUW7TZUY) | `GAKJ…US5X` (single throwaway testnet key; mainnet will use a multisig) | 2 |
+
+The testnet registry is seeded by `scripts/seed-testnet.sh` with two curators, one attester, two `active` demo indicators (hashes of the inert files in `scripts/fixtures/`, campaign `demo`) and one `clean` attestation for the demo repo id `github.com/dome-security/demo-repo`. Testnet is periodically reset by the network, so the id may change; this table is the source of truth.
 
 ## Architecture
 
@@ -215,7 +221,7 @@ dome-backend ──────────────────────�
 | Interface | Owned here | Used by |
 |---|---|---|
 | `@dome-security/registry-bindings`: TypeScript client generated from the contract spec by `scripts/bindings.sh`, committed in `bindings/ts` (npm publish planned; use a path or git dependency until then) | Yes | backend, frontend |
-| Contract id per network (testnet first) | Yes, output of `scripts/deploy.sh` | backend, frontend config |
+| Contract id per network (see [Status](#status)) | Yes, output of `scripts/deploy.sh` | backend, frontend config |
 | Event topics and data (`events.rs`) | Yes | backend indexer |
 | Error codes (`errors.rs`, append-only) | Yes | backend, frontend error messages |
 | Verdict, kind and status symbols | Yes | backend scanner output, frontend labels |
@@ -232,7 +238,10 @@ Milestones from the original specification, compared with the code in this repo:
 - [x] `docs/threat-model.md` and `docs/publication-policy.md`
 - [x] CI: hygiene checks, lint, tests, Wasm build with Stellar CLI, upgrade test against real Wasm
 - [x] Testnet deploy, upgrade and seed scripts with inert demo indicators
-- [ ] **M3 Bindings + testnet** (in progress): generated `bindings/ts` committed and checked for staleness in CI. Still to do: first testnet deployment with a published contract id, publish `@dome-security/registry-bindings` to npm
+- [x] **M3 Bindings + testnet:** generated `bindings/ts` committed and checked for staleness in CI; registry deployed and seeded on testnet
+- [ ] Publish `@dome-security/registry-bindings` to npm (new; use a path or git dependency until then)
+- [ ] Move `scripts/bindings.sh` off the deprecated `stellar contract bindings typescript` to the JavaScript Stellar SDK generator (new)
+- [ ] Exercise `scripts/upgrade.sh` against the testnet deployment (new)
 - [ ] M-of-N approval for retracting `active` indicators (new, from the threat model)
 - [ ] Upgrade timelock or upgrade limits, to discuss in review (new)
 - [ ] **M4 Integration:** backend indexer and attestation publishing, frontend explorer and curator console (work happens in dome-backend and dome-frontend)
