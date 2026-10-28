@@ -3,7 +3,7 @@
 use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 use crate::errors::Error;
-use crate::types::Attestation;
+use crate::types::{Attestation, Indicator};
 
 /// Smallest allowed M in the M-of-N curator approval rule.
 pub const MIN_THRESHOLD: u32 = 2;
@@ -30,6 +30,7 @@ pub enum DataKey {
     AttestCount(BytesN<32>),
     /// Attestation `n` (0-based) for a repo.
     Attest(BytesN<32>, u32),
+    Indicator(BytesN<32>),
 }
 
 pub fn extend_instance(env: &Env) {
@@ -120,4 +121,16 @@ pub fn attestation(env: &Env, repo: &BytesN<32>, n: u32) -> Option<Attestation> 
     env.storage()
         .persistent()
         .get(&DataKey::Attest(repo.clone(), n))
+}
+
+pub fn indicator(env: &Env, hash: &BytesN<32>) -> Option<Indicator> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Indicator(hash.clone()))
+}
+
+pub fn set_indicator(env: &Env, i: &Indicator) {
+    let key = DataKey::Indicator(i.hash.clone());
+    env.storage().persistent().set(&key, i);
+    extend(env, &key);
 }

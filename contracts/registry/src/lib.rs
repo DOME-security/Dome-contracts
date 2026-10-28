@@ -23,12 +23,24 @@ use soroban_sdk::{
 };
 
 pub use errors::Error;
-pub use types::{Attestation, AttestationInput};
+pub use types::{Attestation, AttestationInput, Indicator, IndicatorInput};
 
 use storage::DataKey;
 
 const ROLE_CURATOR: Symbol = symbol_short!("curator");
 const ROLE_ATTESTER: Symbol = symbol_short!("attester");
+
+const STATUS_PROPOSED: Symbol = symbol_short!("proposed");
+const STATUS_ACTIVE: Symbol = symbol_short!("active");
+const STATUS_RETRACTED: Symbol = symbol_short!("retracted");
+
+const KINDS: [Symbol; 5] = [
+    symbol_short!("task"),
+    symbol_short!("font"),
+    symbol_short!("config"),
+    symbol_short!("script"),
+    symbol_short!("package"),
+];
 
 /// Allowed attestation verdicts. `unreadable` is longer than a short symbol,
 /// so it is built at runtime.
@@ -213,6 +225,120 @@ impl DomeRegistry {
             }
         }
         Ok(out)
+    }
+
+    // ----------------------------------------------------------- indicators
+
+    /// Proposes a fingerprint of a malicious file. The proposer's approval is
+    /// counted, so with a threshold of M it needs M-1 more curators.
+    pub fn propose(env: Env, curator: Address, i: IndicatorInput) -> Result<(), Error> {
+        curator.require_auth();
+        storage::require_role(&env, &DataKey::Curator(curator.clone()), Error::NotCurator)?;
+        if !KINDS.contains(&i.kind) {
+            return Err(Error::InvalidKind);
+        }
+        if storage::indicator(&env, &i.hash).is_some() {
+            return Err(Error::IndicatorExists);
+        }
+
+        let mut approvals = Vec::new(&env);
+        approvals.push_back(curator.clone());
+        let ind = Indicator {
+            hash: i.hash,
+            kind: i.kind,
+            campaign: i.campaign,
+            evidence: i.evidence,
+            status: STATUS_PROPOSED,
+            approvals,
+            proposed_at: env.ledger().timestamp(),
+            retracted_by: None,
+            retract_reason: None,
+        };
+        storage::set_indicator(&env, &ind);
+        storage::extend_instance(&env);
+        events::Proposed {
+            hash: ind.hash,
+            kind: ind.kind,
+            campaign: ind.campaign,
+            evidence: ind.evidence,
+            curator,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Adds a curator's approval. The indicator becomes `active` once
+    /// approvals from current curators reach the threshold; approvals from
+    /// curators removed since then no longer count.
+    pub fn approve(env: Env, curator: Address, hash: BytesN<32>) -> Result<(), Error> {
+        curator.require_auth();
+        storage::require_role(&env, &DataKey::Curator(curator.clone()), Error::NotCurator)?;
+        let mut ind = storage::indicator(&env, &hash).ok_or(Error::IndicatorNotFound)?;
+        if ind.status == STATUS_RETRACTED {
+            return Err(Error::IndicatorRetracted);
+        }
+        if ind.approvals.contains(&curator) {
+            return Err(Error::AlreadyApproved);
+        }
+
+        ind.approvals.push_back(curator.clone());
+        let valid = ind
+            .approvals
+            .iter()
+            .filter(|a| storage::has_role(&env, &DataKey::Curator(a.clone())))
+            .count() as u32;
+        if ind.status == STATUS_PROPOSED && valid >= storage::threshold(&env) {
+            ind.status = STATUS_ACTIVE;
+        }
+        storage::set_indicator(&env, &ind);
+        storage::extend_instance(&env);
+        events::Approved {
+            hash,
+            curator,
+            approvals: valid,
+            status: ind.status,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Retracts an indicator, proposed or active. The entry stays readable
+    /// with status `retracted` and the reason hash, so mistakes stay visible.
+    pub fn retract(
+        env: Env,
+        curator: Address,
+        hash: BytesN<32>,
+        reason: BytesN<32>,
+    ) -> Result<(), Error> {
+        curator.require_auth();
+        storage::require_role(&env, &DataKey::Curator(curator.clone()), Error::NotCurator)?;
+        let mut ind = storage::indicator(&env, &hash).ok_or(Error::IndicatorNotFound)?;
+        if ind.status == STATUS_RETRACTED {
+            return Err(Error::IndicatorRetracted);
+        }
+
+        ind.status = STATUS_RETRACTED;
+        ind.retracted_by = Some(curator.clone());
+        ind.retract_reason = Some(reason.clone());
+        storage::set_indicator(&env, &ind);
+        storage::extend_instance(&env);
+        events::Retracted {
+            hash,
+            curator,
+            reason,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// True only for `active` indicators. Proposed and retracted ones are not
+    /// known bad.
+    pub fn is_known_bad(env: Env, hash: BytesN<32>) -> bool {
+        storage::indicator(&env, &hash).is_some_and(|i| i.status == STATUS_ACTIVE)
+    }
+
+    pub fn indicator(env: Env, hash: BytesN<32>) -> Option<Indicator> {
+        storage::indicator(&env, &hash)
     }
 }
 

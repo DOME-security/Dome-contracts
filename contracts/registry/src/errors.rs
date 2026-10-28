@@ -22,4 +22,16 @@ pub enum Error {
     InvalidScanner = 7,
     /// Pagination limit is zero or above [`crate::storage::MAX_PAGE`].
     InvalidLimit = 8,
+    /// Caller is not a registered curator.
+    NotCurator = 9,
+    /// Indicator kind is not one of `task`, `font`, `config`, `script`, `package`.
+    InvalidKind = 10,
+    /// An indicator with this hash already exists (retracted ones included).
+    IndicatorExists = 11,
+    /// No indicator with this hash.
+    IndicatorNotFound = 12,
+    /// Curator has already approved this indicator.
+    AlreadyApproved = 13,
+    /// Indicator has been retracted and can no longer change.
+    IndicatorRetracted = 14,
 }

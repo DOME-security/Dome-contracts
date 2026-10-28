@@ -55,3 +55,39 @@ pub struct Attested {
     pub attester: Address,
     pub index: u32,
 }
+
+/// A curator proposed a new indicator. The proposal counts as the first
+/// approval.
+#[contractevent(topics = ["propose"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Proposed {
+    #[topic]
+    pub hash: BytesN<32>,
+    pub kind: Symbol,
+    pub campaign: Symbol,
+    pub evidence: BytesN<32>,
+    pub curator: Address,
+}
+
+/// A curator approved an indicator. `status` is `active` once the approval
+/// threshold is reached.
+#[contractevent(topics = ["approve"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Approved {
+    #[topic]
+    pub hash: BytesN<32>,
+    pub curator: Address,
+    pub approvals: u32,
+    pub status: Symbol,
+}
+
+/// A curator retracted an indicator. `reason` is the hash of the public
+/// retraction notice.
+#[contractevent(topics = ["retract"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Retracted {
+    #[topic]
+    pub hash: BytesN<32>,
+    pub curator: Address,
+    pub reason: BytesN<32>,
+}
