@@ -189,3 +189,149 @@ fn unknown_repo_has_no_attestations() {
     assert_eq!(s.client.attestation_count(&repo), 0);
     assert_eq!(s.client.history(&repo, &0, &10).len(), 0);
 }
+
+fn reason(s: &Setup) -> BytesN<32> {
+    BytesN::from_array(&s.env, &[0x55; 32])
+}
+
+#[test]
+fn attester_retracts_own_attestation_and_it_stays_visible() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+
+    s.client
+        .retract_attestation(&attester, &input.repo, &0, &reason(&s));
+    assert_eq!(
+        s.env.events().all(),
+        [events::AttestationRetracted {
+            repo: input.repo.clone(),
+            index: 0,
+            by: attester.clone(),
+            reason: reason(&s),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(s.env.auths()[0].0, attester);
+
+    let got = s.client.latest(&input.repo).unwrap();
+    assert_eq!(got.verdict, symbol_short!("block"));
+    assert_eq!(got.retracted_by, Some(attester));
+    assert_eq!(got.retract_reason, Some(reason(&s)));
+    assert_eq!(s.client.attestation_count(&input.repo), 1);
+}
+
+#[test]
+fn admin_can_retract_any_attestation() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "clean");
+    s.client.attest(&attester, &input);
+    s.client.remove_attester(&attester);
+
+    s.client
+        .retract_attestation(&s.admin, &input.repo, &0, &reason(&s));
+    assert_eq!(s.env.auths()[0].0, s.admin);
+    assert_eq!(
+        s.client.latest(&input.repo).unwrap().retracted_by,
+        Some(s.admin.clone())
+    );
+}
+
+#[test]
+fn retract_attestation_without_signature_fails() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+    s.env.set_auths(&[]);
+    assert!(s
+        .client
+        .try_retract_attestation(&attester, &input.repo, &0, &reason(&s))
+        .is_err());
+    assert_eq!(s.client.latest(&input.repo).unwrap().retracted_by, None);
+}
+
+#[test]
+fn retract_attestation_signed_by_someone_else_fails() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+    let other = Address::generate(&s.env);
+    s.env.mock_auths(&[MockAuth {
+        address: &other,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "retract_attestation",
+            args: (attester.clone(), input.repo.clone(), 0u32, reason(&s)).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s
+        .client
+        .try_retract_attestation(&attester, &input.repo, &0, &reason(&s))
+        .is_err());
+}
+
+#[test]
+fn other_attesters_and_strangers_cannot_retract() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+
+    let other_attester = Address::generate(&s.env);
+    s.client.add_attester(&other_attester);
+    let stranger = Address::generate(&s.env);
+    for who in [other_attester, stranger] {
+        assert_eq!(
+            s.client
+                .try_retract_attestation(&who, &input.repo, &0, &reason(&s)),
+            Err(Ok(Error::NotAllowedToRetract))
+        );
+    }
+}
+
+#[test]
+fn removed_attester_cannot_retract_own_attestation() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+    s.client.remove_attester(&attester);
+    assert_eq!(
+        s.client
+            .try_retract_attestation(&attester, &input.repo, &0, &reason(&s)),
+        Err(Ok(Error::NotAllowedToRetract))
+    );
+}
+
+#[test]
+fn retraction_is_final_and_index_must_exist() {
+    let (s, attester) = with_attester();
+    let input = attestation_input(&s.env, 1, "block");
+    s.client.attest(&attester, &input);
+    s.client
+        .retract_attestation(&attester, &input.repo, &0, &reason(&s));
+    assert_eq!(
+        s.client
+            .try_retract_attestation(&s.admin, &input.repo, &0, &reason(&s)),
+        Err(Ok(Error::AttestationRetracted))
+    );
+    assert_eq!(
+        s.client
+            .try_retract_attestation(&attester, &input.repo, &1, &reason(&s)),
+        Err(Ok(Error::AttestationNotFound))
+    );
+}
+
+#[test]
+fn retracting_one_entry_leaves_the_rest_of_history_alone() {
+    let (s, attester) = with_attester();
+    let repo = BytesN::from_array(&s.env, &[9; 32]);
+    for v in ["clean", "block", "clean"] {
+        s.client.attest(&attester, &attestation_input(&s.env, 9, v));
+    }
+    s.client
+        .retract_attestation(&attester, &repo, &1, &reason(&s));
+    let all = s.client.history(&repo, &0, &10);
+    assert_eq!(all.get(0).unwrap().retracted_by, None);
+    assert_eq!(all.get(1).unwrap().retracted_by, Some(attester));
+    assert_eq!(all.get(2).unwrap().retracted_by, None);
+}
