@@ -27,11 +27,15 @@ generate() {
     const file = process.argv[1] + "/package.json";
     const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
     pkg.name = process.argv[2];
+    pkg.license = "Apache-2.0";
     for (const s of ["preinstall", "install", "postinstall", "prepare", "prepublish"]) {
       if (pkg.scripts) delete pkg.scripts[s];
     }
     fs.writeFileSync(file, JSON.stringify(pkg, null, 2) + "\n");
   ' "$dir" "$PACKAGE"
+  # The generated README suggests regenerating in a postinstall hook, which
+  # Dome forbids. Replace it with ours.
+  cp "$ROOT/scripts/bindings-readme.md" "$dir/README.md"
 }
 
 if [[ "${1:-}" == "--check" ]]; then
