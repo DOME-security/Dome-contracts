@@ -1,11 +1,14 @@
 //! Storage keys, TTL policy and role helpers.
 
-use soroban_sdk::{contracttype, Address, Env};
+use soroban_sdk::{contracttype, Address, BytesN, Env};
 
 use crate::errors::Error;
+use crate::types::Attestation;
 
 /// Smallest allowed M in the M-of-N curator approval rule.
 pub const MIN_THRESHOLD: u32 = 2;
+/// Largest page returned by `history`.
+pub const MAX_PAGE: u32 = 50;
 
 /// ~5 second ledgers.
 const DAY_IN_LEDGERS: u32 = 17_280;
@@ -23,6 +26,10 @@ pub enum DataKey {
     // persistent
     Curator(Address),
     Attester(Address),
+    /// Number of attestations recorded for a repo.
+    AttestCount(BytesN<32>),
+    /// Attestation `n` (0-based) for a repo.
+    Attest(BytesN<32>, u32),
 }
 
 pub fn extend_instance(env: &Env) {
@@ -79,4 +86,38 @@ pub fn revoke_role(env: &Env, key: &DataKey) -> Result<(), Error> {
     }
     env.storage().persistent().remove(key);
     Ok(())
+}
+
+/// Checks the role and keeps an active role holder's entry alive.
+pub fn require_role(env: &Env, key: &DataKey, err: Error) -> Result<(), Error> {
+    if !has_role(env, key) {
+        return Err(err);
+    }
+    extend(env, key);
+    Ok(())
+}
+
+pub fn attest_count(env: &Env, repo: &BytesN<32>) -> u32 {
+    env.storage()
+        .persistent()
+        .get(&DataKey::AttestCount(repo.clone()))
+        .unwrap_or(0)
+}
+
+/// Appends an attestation to the repo's history and returns its index.
+pub fn push_attestation(env: &Env, a: &Attestation) -> u32 {
+    let n = attest_count(env, &a.repo);
+    let count_key = DataKey::AttestCount(a.repo.clone());
+    let entry_key = DataKey::Attest(a.repo.clone(), n);
+    env.storage().persistent().set(&entry_key, a);
+    env.storage().persistent().set(&count_key, &(n + 1));
+    extend(env, &entry_key);
+    extend(env, &count_key);
+    n
+}
+
+pub fn attestation(env: &Env, repo: &BytesN<32>, n: u32) -> Option<Attestation> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::Attest(repo.clone(), n))
 }

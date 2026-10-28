@@ -11,6 +11,7 @@
 mod errors;
 mod events;
 mod storage;
+mod types;
 
 #[cfg(test)]
 extern crate std;
@@ -18,15 +19,25 @@ extern crate std;
 mod test;
 
 use soroban_sdk::{
-    contract, contractimpl, symbol_short, Address, BytesN, ContractExecutable, Env, Symbol,
+    contract, contractimpl, symbol_short, Address, BytesN, ContractExecutable, Env, Symbol, Vec,
 };
 
 pub use errors::Error;
+pub use types::{Attestation, AttestationInput};
 
 use storage::DataKey;
 
 const ROLE_CURATOR: Symbol = symbol_short!("curator");
 const ROLE_ATTESTER: Symbol = symbol_short!("attester");
+
+/// Allowed attestation verdicts. `unreadable` is longer than a short symbol,
+/// so it is built at runtime.
+fn is_verdict(env: &Env, v: &Symbol) -> bool {
+    *v == symbol_short!("clean")
+        || *v == symbol_short!("review")
+        || *v == symbol_short!("block")
+        || *v == Symbol::new(env, "unreadable")
+}
 
 #[contract]
 pub struct DomeRegistry;
@@ -126,6 +137,82 @@ impl DomeRegistry {
         env.deployer()
             .update_current_contract(ContractExecutable::Wasm(wasm_hash.clone()));
         events::Upgraded { wasm_hash }.publish(&env);
+    }
+
+    // --------------------------------------------------------- attestations
+
+    /// Publishes the result of a scan of one commit. Earlier attestations for
+    /// the same repo are kept; `latest` returns the newest.
+    pub fn attest(env: Env, attester: Address, a: AttestationInput) -> Result<u32, Error> {
+        attester.require_auth();
+        storage::require_role(
+            &env,
+            &DataKey::Attester(attester.clone()),
+            Error::NotAttester,
+        )?;
+        if !is_verdict(&env, &a.verdict) {
+            return Err(Error::InvalidVerdict);
+        }
+        if !matches!(a.commit.len(), 20 | 32) {
+            return Err(Error::InvalidCommit);
+        }
+        if a.scanner == 0 {
+            return Err(Error::InvalidScanner);
+        }
+
+        let att = Attestation {
+            repo: a.repo,
+            commit: a.commit,
+            verdict: a.verdict,
+            scanner: a.scanner,
+            rules: a.rules,
+            report: a.report,
+            attester,
+            at: env.ledger().timestamp(),
+        };
+        let index = storage::push_attestation(&env, &att);
+        storage::extend_instance(&env);
+        events::Attested {
+            repo: att.repo,
+            verdict: att.verdict,
+            commit: att.commit,
+            attester: att.attester,
+            index,
+        }
+        .publish(&env);
+        Ok(index)
+    }
+
+    pub fn latest(env: Env, repo: BytesN<32>) -> Option<Attestation> {
+        match storage::attest_count(&env, &repo) {
+            0 => None,
+            n => storage::attestation(&env, &repo, n - 1),
+        }
+    }
+
+    pub fn attestation_count(env: Env, repo: BytesN<32>) -> u32 {
+        storage::attest_count(&env, &repo)
+    }
+
+    /// Attestations for `repo`, oldest first, starting at index `start`.
+    /// `limit` must be between 1 and 50.
+    pub fn history(
+        env: Env,
+        repo: BytesN<32>,
+        start: u32,
+        limit: u32,
+    ) -> Result<Vec<Attestation>, Error> {
+        if limit == 0 || limit > storage::MAX_PAGE {
+            return Err(Error::InvalidLimit);
+        }
+        let end = storage::attest_count(&env, &repo).min(start.saturating_add(limit));
+        let mut out = Vec::new(&env);
+        for n in start..end {
+            if let Some(a) = storage::attestation(&env, &repo, n) {
+                out.push_back(a);
+            }
+        }
+        Ok(out)
     }
 }
 
