@@ -241,7 +241,7 @@ Milestones from the original specification, compared with the code in this repo:
 - [x] **M3 Bindings + testnet:** generated `bindings/ts` committed and checked for staleness in CI; registry deployed and seeded on testnet
 - [ ] Publish `@dome-security/registry-bindings` to npm (new; use a path or git dependency until then)
 - [ ] Move `scripts/bindings.sh` off the deprecated `stellar contract bindings typescript` to the JavaScript Stellar SDK generator (new)
-- [ ] Exercise `scripts/upgrade.sh` against the testnet deployment (new)
+- [x] Exercise `scripts/upgrade.sh` against the testnet deployment: upgraded in place to the soroban-sdk 29 build with storage intact
 - [ ] M-of-N approval for retracting `active` indicators (new, from the threat model)
 - [ ] Upgrade timelock or upgrade limits, to discuss in review (new)
 - [ ] **M4 Integration:** backend indexer and attestation publishing, frontend explorer and curator console (work happens in dome-backend and dome-frontend)
