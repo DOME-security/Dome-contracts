@@ -1,0 +1,12 @@
+{
+  "//": "Dome test fixture. Inert look-alike of an auto-run task; it only echoes a marker.",
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dome-fixture",
+      "type": "shell",
+      "command": "echo DOME_FIXTURE",
+      "runOptions": { "runOn": "folderOpen" }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "//": "Dome test fixture. Inert look-alike of a tampered editor config; it only echoes a marker.",
+  "task.allowAutomaticTasks": "on",
+  "dome.fixture": "echo DOME_FIXTURE"
+}
