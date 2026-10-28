@@ -35,6 +35,9 @@ contracts/
         ├── errors.rs     Error codes (stable, append-only)
         └── test/         soroban-sdk testutils suites: roles, attestations, indicators, ttl
 
+bindings/
+└── ts/               Generated TypeScript client (@dome-security/registry-bindings), checked for staleness in CI
+
 scripts/              Testnet deploy, upgrade, seed (inert demo data) and bindings generation
 └── fixtures/         Inert look-alike files used for demo indicators (`echo DOME_FIXTURE`)
 
@@ -43,13 +46,13 @@ docs/                 Threat model and publication policy
 .github/workflows/    CI: hygiene checks, lint, tests, Wasm build, bindings check
 ```
 
-`contracts/` is a Cargo workspace, so future contracts (for example a self-attestation contract with verified repository ownership) can be added without a new repo. Generated TypeScript bindings will live in `bindings/ts/` once committed (planned).
+`contracts/` is a Cargo workspace, so future contracts (for example a self-attestation contract with verified repository ownership) can be added without a new repo.
 
 | Layer | Tool | Members |
 |---|---|---|
 | Contracts | Cargo workspace | `contracts/registry` |
 | Wasm build | [Stellar CLI](https://developers.stellar.org/docs/tools/cli/stellar-cli) `stellar contract build` | `contracts/registry` → `target/wasm32v1-none/release/dome_registry.wasm` |
-| TypeScript bindings | Stellar CLI `stellar contract bindings typescript` via `scripts/bindings.sh` | `bindings/ts` → `@dome-security/registry-bindings` (planned) |
+| TypeScript bindings | Stellar CLI `stellar contract bindings typescript` via `scripts/bindings.sh` | `bindings/ts` → `@dome-security/registry-bindings` (committed; npm publish planned) |
 
 ## Tech stack
 
@@ -198,7 +201,7 @@ dome-backend ──────────────────────�
 
 **[dome-backend](https://github.com/DOME-security/Dome-backend)**
 
-- *Sends to this repo's contract:* `attest` calls after release scans, signed by an attester key the admin registered. The backend holds `block` results for someone else's repository until the notice period in the publication policy has passed.
+- *Sends to this repo's contract:* `attest` calls after release scans, signed by an attester key the admin registered, and `retract_attestation` for its own mistaken results. The backend holds `block` results for someone else's repository until the notice period in the publication policy has passed.
 - *Receives from it:* active indicators via `is_known_bad` / `indicator`, which it pulls into the scanner (`dome intel update`), and every contract event, which its indexer stores for fast reads and as a full history if entries are archived.
 - *Calls `extend_repo` / `extend_indicator`* for entries that are still in use.
 
@@ -211,7 +214,7 @@ dome-backend ──────────────────────�
 
 | Interface | Owned here | Used by |
 |---|---|---|
-| `@dome-security/registry-bindings`: TypeScript client generated from the contract spec by `scripts/bindings.sh` (planned: not yet committed or published) | Yes | backend, frontend |
+| `@dome-security/registry-bindings`: TypeScript client generated from the contract spec by `scripts/bindings.sh`, committed in `bindings/ts` (npm publish planned; use a path or git dependency until then) | Yes | backend, frontend |
 | Contract id per network (testnet first) | Yes, output of `scripts/deploy.sh` | backend, frontend config |
 | Event topics and data (`events.rs`) | Yes | backend indexer |
 | Error codes (`errors.rs`, append-only) | Yes | backend, frontend error messages |
@@ -229,7 +232,7 @@ Milestones from the original specification, compared with the code in this repo:
 - [x] `docs/threat-model.md` and `docs/publication-policy.md`
 - [x] CI: hygiene checks, lint, tests, Wasm build with Stellar CLI, upgrade test against real Wasm
 - [x] Testnet deploy, upgrade and seed scripts with inert demo indicators
-- [ ] **M3 Bindings + testnet** (in progress): `scripts/bindings.sh` and the CI staleness check exist. Still to do: commit generated `bindings/ts`, publish `@dome-security/registry-bindings`, first testnet deployment with a published contract id
+- [ ] **M3 Bindings + testnet** (in progress): generated `bindings/ts` committed and checked for staleness in CI. Still to do: first testnet deployment with a published contract id, publish `@dome-security/registry-bindings` to npm
 - [ ] M-of-N approval for retracting `active` indicators (new, from the threat model)
 - [ ] Upgrade timelock or upgrade limits, to discuss in review (new)
 - [ ] **M4 Integration:** backend indexer and attestation publishing, frontend explorer and curator console (work happens in dome-backend and dome-frontend)
