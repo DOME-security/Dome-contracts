@@ -56,6 +56,18 @@ pub struct Attested {
     pub index: u32,
 }
 
+/// An attestation was retracted by its attester or the admin. `reason` is
+/// the hash of the public retraction notice.
+#[contractevent(topics = ["retract_attest"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttestationRetracted {
+    #[topic]
+    pub repo: BytesN<32>,
+    pub index: u32,
+    pub by: Address,
+    pub reason: BytesN<32>,
+}
+
 /// A curator proposed a new indicator. The proposal counts as the first
 /// approval.
 #[contractevent(topics = ["propose"])]

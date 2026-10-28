@@ -181,6 +181,8 @@ impl DomeRegistry {
             report: a.report,
             attester,
             at: env.ledger().timestamp(),
+            retracted_by: None,
+            retract_reason: None,
         };
         let index = storage::push_attestation(&env, &att);
         storage::extend_instance(&env);
@@ -204,6 +206,44 @@ impl DomeRegistry {
 
     pub fn attestation_count(env: Env, repo: BytesN<32>) -> u32 {
         storage::attest_count(&env, &repo)
+    }
+
+    /// Marks attestation `index` of `repo` as retracted. Allowed for the
+    /// attester who wrote it while they still hold the attester role, and for
+    /// the admin, e.g. after an attester key was compromised. The entry stays
+    /// in the history with `retracted_by` and `retract_reason` set, and
+    /// `latest` keeps returning it if it is the newest; readers must check
+    /// `retracted_by`.
+    pub fn retract_attestation(
+        env: Env,
+        by: Address,
+        repo: BytesN<32>,
+        index: u32,
+        reason: BytesN<32>,
+    ) -> Result<(), Error> {
+        by.require_auth();
+        let mut att = storage::attestation(&env, &repo, index).ok_or(Error::AttestationNotFound)?;
+        let is_admin = by == storage::admin(&env);
+        let is_own = by == att.attester && storage::has_role(&env, &DataKey::Attester(by.clone()));
+        if !is_admin && !is_own {
+            return Err(Error::NotAllowedToRetract);
+        }
+        if att.retracted_by.is_some() {
+            return Err(Error::AttestationRetracted);
+        }
+
+        att.retracted_by = Some(by.clone());
+        att.retract_reason = Some(reason.clone());
+        storage::set_attestation(&env, index, &att);
+        storage::extend_instance(&env);
+        events::AttestationRetracted {
+            repo,
+            index,
+            by,
+            reason,
+        }
+        .publish(&env);
+        Ok(())
     }
 
     /// Attestations for `repo`, oldest first, starting at index `start`.

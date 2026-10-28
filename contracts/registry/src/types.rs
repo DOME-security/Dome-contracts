@@ -31,6 +31,10 @@ pub struct Attestation {
     pub attester: Address,
     /// Ledger timestamp of the write.
     pub at: u64,
+    /// Who retracted it, if retracted: the attester or the admin.
+    pub retracted_by: Option<Address>,
+    /// Hash of the public retraction notice, if retracted.
+    pub retract_reason: Option<BytesN<32>>,
 }
 
 /// Indicator proposed by a curator. The contract fills in status and approvals.

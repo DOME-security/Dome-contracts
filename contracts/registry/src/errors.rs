@@ -34,4 +34,10 @@ pub enum Error {
     AlreadyApproved = 13,
     /// Indicator has been retracted and can no longer change.
     IndicatorRetracted = 14,
+    /// No attestation at this index for this repo.
+    AttestationNotFound = 15,
+    /// Attestation has already been retracted.
+    AttestationRetracted = 16,
+    /// Only the original attester or the admin may retract an attestation.
+    NotAllowedToRetract = 17,
 }

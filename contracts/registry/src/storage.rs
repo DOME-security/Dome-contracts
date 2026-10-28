@@ -128,6 +128,13 @@ pub fn attestation(env: &Env, repo: &BytesN<32>, n: u32) -> Option<Attestation> 
         .get(&DataKey::Attest(repo.clone(), n))
 }
 
+/// Overwrites attestation `n` in place, e.g. to mark it retracted.
+pub fn set_attestation(env: &Env, n: u32, a: &Attestation) {
+    let key = DataKey::Attest(a.repo.clone(), n);
+    env.storage().persistent().set(&key, a);
+    extend(env, &key);
+}
+
 pub fn indicator(env: &Env, hash: &BytesN<32>) -> Option<Indicator> {
     env.storage()
         .persistent()
