@@ -32,7 +32,7 @@ The testnet registry is seeded by `scripts/seed-testnet.sh` with two curators, o
 
 ```
 contracts/
-└── registry/         Dome Registry contract (Rust, soroban-sdk 28)
+└── registry/         Dome Registry contract (Rust, soroban-sdk 29)
     └── src/
         ├── lib.rs        Contract entry points: roles, attestations, indicators, TTL
         ├── types.rs      Attestation, Indicator and their input types
@@ -45,6 +45,9 @@ bindings/
 └── ts/               Generated TypeScript client (@dome-security/registry-bindings), checked for staleness in CI
 
 scripts/              Testnet deploy, upgrade, seed (inert demo data) and bindings generation
+
+tools/
+└── bindgen/          Pinned bindings generator (@stellar/stellar-sdk `stellar-js generate`, lockfile, installed with --ignore-scripts)
 └── fixtures/         Inert look-alike files used for demo indicators (`echo DOME_FIXTURE`)
 
 docs/                 Threat model and publication policy
@@ -58,12 +61,12 @@ docs/                 Threat model and publication policy
 |---|---|---|
 | Contracts | Cargo workspace | `contracts/registry` |
 | Wasm build | [Stellar CLI](https://developers.stellar.org/docs/tools/cli/stellar-cli) `stellar contract build` | `contracts/registry` → `target/wasm32v1-none/release/dome_registry.wasm` |
-| TypeScript bindings | Stellar CLI `stellar contract bindings typescript` via `scripts/bindings.sh` | `bindings/ts` → `@dome-security/registry-bindings` (committed; npm publish planned) |
+| TypeScript bindings | `stellar-js generate` from `@stellar/stellar-sdk`, pinned in `tools/bindgen`, via `scripts/bindings.sh` | `bindings/ts` → `@dome-security/registry-bindings` (committed; npm publish planned) |
 
 ## Tech stack
 
-- **Smart contract**: Rust, `soroban-sdk` 28, target `wasm32v1-none`, deployed on Stellar
-- **Tooling**: Stellar CLI v25.2+ (v28.1.0 in CI), `make`, Bash scripts checked with shellcheck
+- **Smart contract**: Rust, `soroban-sdk` 29, target `wasm32v1-none`, deployed on Stellar
+- **Tooling**: Stellar CLI v25.2+ (v28.1.0 in CI) for Wasm builds, `@stellar/stellar-sdk` 17.2.1 `stellar-js generate` for bindings (Node 22.12+), `make`, Bash scripts checked with shellcheck
 - **Tests**: `soroban-sdk` testutils (mocked and explicit auth, event and TTL assertions)
 - **CI**: GitHub Actions, every action pinned by commit SHA, read-only token
 - **Clients**: TypeScript bindings generated from the contract spec, for `dome-backend` and `dome-frontend`
@@ -72,7 +75,7 @@ docs/                 Threat model and publication policy
 
 > Contributions come through the Stellar Wave Program on Drips. Apply for an issue in the [Drips Wave app](https://www.drips.network/wave) and wait to be assigned. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the process and PR rules.
 
-Requirements: Rust (the toolchain and `wasm32v1-none` target come from `rust-toolchain.toml`), and the [Stellar CLI](https://developers.stellar.org/docs/tools/cli/stellar-cli) v25.2+ for Wasm builds and bindings. `soroban-sdk` 28 can only build Wasm through `stellar contract build`; plain `cargo test` needs no CLI.
+Requirements: Rust (the toolchain and `wasm32v1-none` target come from `rust-toolchain.toml`), and the [Stellar CLI](https://developers.stellar.org/docs/tools/cli/stellar-cli) v25.2+ for Wasm builds, and Node 22.12+ for bindings. `soroban-sdk` 29 can only build Wasm through `stellar contract build`; plain `cargo test` needs no CLI.
 
 ```bash
 git clone https://github.com/DOME-security/Dome-contracts.git
@@ -240,7 +243,7 @@ Milestones from the original specification, compared with the code in this repo:
 - [x] Testnet deploy, upgrade and seed scripts with inert demo indicators
 - [x] **M3 Bindings + testnet:** generated `bindings/ts` committed and checked for staleness in CI; registry deployed and seeded on testnet
 - [ ] Publish `@dome-security/registry-bindings` to npm (new; use a path or git dependency until then)
-- [ ] Move `scripts/bindings.sh` off the deprecated `stellar contract bindings typescript` to the JavaScript Stellar SDK generator (new)
+- [x] Move `scripts/bindings.sh` off the deprecated `stellar contract bindings typescript` to the pinned JavaScript Stellar SDK generator
 - [x] Exercise `scripts/upgrade.sh` against the testnet deployment: upgraded in place to the soroban-sdk 29 build with storage intact
 - [ ] M-of-N approval for retracting `active` indicators (new, from the threat model)
 - [ ] Upgrade timelock or upgrade limits, to discuss in review (new)

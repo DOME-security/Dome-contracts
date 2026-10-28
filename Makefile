@@ -1,5 +1,5 @@
-# Dome contracts. `build` and `bindings` need stellar-cli v25.2+; the
-# rest only need Rust.
+# Dome contracts. `build` needs stellar-cli v25.2+, `bindings` also needs
+# Node 22.12+; the rest only need Rust.
 
 WASM := target/wasm32v1-none/release/dome_registry.wasm
 

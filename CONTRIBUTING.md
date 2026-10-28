@@ -12,7 +12,7 @@ Points are awarded when the issue is closed as completed during an active Wave: 
 
 ## Local setup
 
-You need Rust (the toolchain in `rust-toolchain.toml` is installed automatically) and, to build Wasm or bindings, [stellar-cli](https://developers.stellar.org/docs/tools/cli/stellar-cli) v25.2 or newer.
+You need Rust (the toolchain in `rust-toolchain.toml` is installed automatically) and, to build Wasm, [stellar-cli](https://developers.stellar.org/docs/tools/cli/stellar-cli) v25.2 or newer. Regenerating TypeScript bindings (`make bindings`) also needs Node 22.12+; the generator is pinned in `tools/bindgen` and installed with `npm ci --ignore-scripts`.
 
 ```bash
 make lint        # rustfmt check + clippy with warnings as errors
