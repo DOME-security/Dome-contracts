@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Nothing here writes to the repo, so the token is read-only.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  STELLAR_CLI_VERSION: v28.1.0
+
+jobs:
+  hygiene:
+    name: Repo hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Reject auto-run files, secrets and install scripts
+        run: |
+          fail=0
+          if git ls-files | grep -E '(^|/)\.vscode/tasks\.json$'; then
+            echo "::error::.vscode/tasks.json is not allowed in this repo"; fail=1
+          fi
+          if git ls-files | grep -E '(^|/)\.env(\..*)?$|(^|/)\.stellar/|(^|/)identity/.*\.toml$|\.key$'; then
+            echo "::error::secrets, .env or Stellar identity files are committed"; fail=1
+          fi
+          if git ls-files -z '*package.json' | xargs -0 -r grep -lE '"(preinstall|install|postinstall|prepare)"[[:space:]]*:'; then
+            echo "::error::npm install lifecycle scripts are not allowed"; fail=1
+          fi
+          exit $fail
+      - name: Shellcheck
+        run: shellcheck scripts/*.sh
+
+  rust:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - run: make lint
+      - run: make test
+
+  wasm:
+    name: Build Wasm and check bindings
+    runs-on: ubuntu-latest
+    needs: rust
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-wasm-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      # The action reads its version from the ref, which is a SHA here, so
+      # the version is passed explicitly.
+      - uses: stellar/stellar-cli@c0f4d0da891bbf214c08b8c5035ae6db80e9a3bd # v28.1.0
+        with:
+          version: ${{ env.STELLAR_CLI_VERSION }}
+      - name: Build and run all tests, including the upgrade test
+        run: make test-wasm
+      - name: Report Wasm size
+        run: ls -l target/wasm32v1-none/release/dome_registry.wasm
+      - name: Check committed bindings are current
+        if: hashFiles('bindings/ts/package.json') != ''
+        run: ./scripts/bindings.sh --check
+      - name: Generate bindings for review
+        if: hashFiles('bindings/ts/package.json') == ''
+        run: ./scripts/bindings.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dome-registry
+          path: |
+            target/wasm32v1-none/release/dome_registry.wasm
+            bindings/ts
+          if-no-files-found: error
