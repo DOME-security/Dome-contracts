@@ -242,7 +242,7 @@ The registry decides which files the ecosystem treats as malicious, so its keys 
 
 ## License
 
-Apache-2.0 (proposed). The Cargo manifests declare Apache-2.0; a `LICENSE` file will be added once the license is confirmed.
+[Apache-2.0](LICENSE).
 
 ## Acknowledgments
 
