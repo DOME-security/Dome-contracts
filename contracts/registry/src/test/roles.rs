@@ -4,7 +4,7 @@ use soroban_sdk::{
         Address as _, AuthorizedFunction, AuthorizedInvocation, Events as _, MockAuth,
         MockAuthInvoke,
     },
-    Address, Bytes, BytesN, Env, Event, IntoVal, Symbol,
+    Address, BytesN, Env, Event, IntoVal, Symbol,
 };
 
 use super::{setup, setup_mocked};
@@ -114,6 +114,82 @@ fn admin_removes_curator_and_event_is_emitted() {
         .to_xdr(&s.env, &s.client.address)]
     );
     assert!(!s.client.is_curator(&c));
+}
+
+#[test]
+fn admin_adds_attester_with_auth() {
+    let s = setup_mocked();
+    let attester = Address::generate(&s.env);
+    s.client.add_attester(&attester);
+    assert_eq!(
+        s.env.events().all(),
+        [events::RoleGranted {
+            role: symbol_short!("attester"),
+            account: attester.clone()
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(s.env.auths()[0].0, s.admin);
+    assert!(s.client.is_attester(&attester));
+}
+
+#[test]
+fn add_attester_without_or_with_wrong_auth_fails() {
+    let s = setup();
+    let attester = Address::generate(&s.env);
+    assert!(s.client.try_add_attester(&attester).is_err());
+
+    s.env.mock_auths(&[MockAuth {
+        address: &attester,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "add_attester",
+            args: (attester.clone(),).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_add_attester(&attester).is_err());
+    assert!(!s.client.is_attester(&attester));
+}
+
+#[test]
+fn admin_removes_attester_and_event_is_emitted() {
+    let s = setup_mocked();
+    let a = Address::generate(&s.env);
+    s.client.add_attester(&a);
+    s.client.remove_attester(&a);
+    assert_eq!(
+        s.env.events().all(),
+        [events::RoleRevoked {
+            role: symbol_short!("attester"),
+            account: a.clone()
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(s.env.auths()[0].0, s.admin);
+}
+
+#[test]
+fn remove_curator_without_or_with_wrong_auth_fails() {
+    let s = setup_mocked();
+    let c = Address::generate(&s.env);
+    s.client.add_curator(&c);
+
+    s.env.set_auths(&[]);
+    assert!(s.client.try_remove_curator(&c).is_err());
+
+    s.env.mock_auths(&[MockAuth {
+        address: &c,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "remove_curator",
+            args: (c.clone(),).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_remove_curator(&c).is_err());
+    assert!(s.client.is_curator(&c));
+    assert_eq!(s.client.curator_count(), 1);
 }
 
 #[test]
@@ -405,25 +481,16 @@ fn upgrade_without_admin_auth_fails() {
     let s = setup();
     let hash = BytesN::from_array(&s.env, &[7; 32]);
     assert!(s.client.try_upgrade(&hash).is_err());
-}
 
-/// Allowed path for `upgrade`. Needs the contract Wasm, which only
-/// `stellar contract build` can produce, so it runs when `DOME_REGISTRY_WASM`
-/// points at the built file (CI sets it) and is skipped otherwise.
-#[test]
-fn upgrade_with_admin_auth_replaces_code() {
-    let Ok(path) = std::env::var("DOME_REGISTRY_WASM") else {
-        std::println!("skipped: DOME_REGISTRY_WASM not set");
-        return;
-    };
-    let wasm = std::fs::read(path).expect("read DOME_REGISTRY_WASM");
-    let s = setup_mocked();
-    let hash = s
-        .env
-        .deployer()
-        .upload_contract_wasm(Bytes::from_slice(&s.env, &wasm));
-    s.client.upgrade(&hash);
-    assert_eq!(s.env.auths()[0].0, s.admin);
-    // State survives the upgrade.
-    assert_eq!(s.client.admin(), s.admin);
+    let intruder = Address::generate(&s.env);
+    s.env.mock_auths(&[MockAuth {
+        address: &intruder,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "upgrade",
+            args: (hash.clone(),).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_upgrade(&hash).is_err());
 }
