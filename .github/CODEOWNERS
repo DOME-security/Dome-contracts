@@ -1,0 +1,12 @@
+# Code owners review every change to the contract, the scripts that deploy
+# it and the CI that checks it. Enforce with "Require review from Code
+# Owners" in the main branch ruleset. Replace with a team once the org has
+# a second maintainer.
+/contracts/  @Coredevjay
+/scripts/    @Coredevjay
+/.github/    @Coredevjay
+/bindings/   @Coredevjay
+/tools/      @Coredevjay
+/.cargo/     @Coredevjay
+/Cargo.toml  @Coredevjay
+/Cargo.lock  @Coredevjay
