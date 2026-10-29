@@ -27,6 +27,8 @@ pub const TTL_EXTEND_TO: u32 = 120 * DAY_IN_LEDGERS;
 pub enum DataKey {
     // instance
     Admin,
+    /// Address offered the admin role by `transfer_admin`, until it accepts.
+    PendingAdmin,
     Threshold,
     /// Number of addresses holding the curator role.
     CuratorCount,
@@ -59,6 +61,18 @@ pub fn admin(env: &Env) -> Address {
 
 pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&DataKey::Admin, admin);
+}
+
+pub fn pending_admin(env: &Env) -> Option<Address> {
+    env.storage().instance().get(&DataKey::PendingAdmin)
+}
+
+pub fn set_pending_admin(env: &Env, admin: &Address) {
+    env.storage().instance().set(&DataKey::PendingAdmin, admin);
+}
+
+pub fn remove_pending_admin(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingAdmin);
 }
 
 pub fn threshold(env: &Env) -> u32 {

@@ -76,19 +76,47 @@ impl DomeRegistry {
         storage::threshold(&env)
     }
 
-    /// Hands the admin role to `new_admin`. Both must sign so the role can't
-    /// be sent to an address nobody controls.
-    pub fn set_admin(env: Env, new_admin: Address) {
-        let old = storage::admin(&env);
-        old.require_auth();
-        new_admin.require_auth();
-        storage::set_admin(&env, &new_admin);
+    /// Admin that has been offered the role and not yet accepted it.
+    pub fn pending_admin(env: Env) -> Option<Address> {
+        storage::pending_admin(&env)
+    }
+
+    /// Step 1 of 2: the admin offers the role to `new_admin`. Nothing changes
+    /// until `new_admin` calls `accept_admin`, so the role can't be sent to
+    /// an address nobody controls. A second call replaces the offer.
+    pub fn transfer_admin(env: Env, new_admin: Address) {
+        let admin = storage::admin(&env);
+        admin.require_auth();
+        storage::set_pending_admin(&env, &new_admin);
         storage::extend_instance(&env);
-        events::AdminChanged {
-            old,
-            new: new_admin,
+        events::AdminTransferStarted {
+            admin,
+            pending: new_admin,
         }
         .publish(&env);
+    }
+
+    /// Step 2 of 2: the offered address accepts and becomes admin.
+    pub fn accept_admin(env: Env) -> Result<(), Error> {
+        let new = storage::pending_admin(&env).ok_or(Error::NoPendingAdmin)?;
+        new.require_auth();
+        let old = storage::admin(&env);
+        storage::set_admin(&env, &new);
+        storage::remove_pending_admin(&env);
+        storage::extend_instance(&env);
+        events::AdminChanged { old, new }.publish(&env);
+        Ok(())
+    }
+
+    /// Withdraws a pending offer. Admin only.
+    pub fn cancel_admin_transfer(env: Env) -> Result<(), Error> {
+        let admin = storage::admin(&env);
+        admin.require_auth();
+        let pending = storage::pending_admin(&env).ok_or(Error::NoPendingAdmin)?;
+        storage::remove_pending_admin(&env);
+        storage::extend_instance(&env);
+        events::AdminTransferCancelled { admin, pending }.publish(&env);
+        Ok(())
     }
 
     /// Sets M in the M-of-N approval rule. M must be at least 2 and at most

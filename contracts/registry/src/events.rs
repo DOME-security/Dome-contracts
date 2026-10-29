@@ -23,6 +23,23 @@ pub struct RoleRevoked {
     pub account: Address,
 }
 
+/// The admin offered its role to `pending` (step 1 of 2).
+#[contractevent(topics = ["admin_proposed"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminTransferStarted {
+    pub admin: Address,
+    pub pending: Address,
+}
+
+/// The admin withdrew its offer to `pending`.
+#[contractevent(topics = ["admin_cancelled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminTransferCancelled {
+    pub admin: Address,
+    pub pending: Address,
+}
+
+/// `new` accepted the admin role from `old` (step 2 of 2).
 #[contractevent(topics = ["admin_changed"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdminChanged {

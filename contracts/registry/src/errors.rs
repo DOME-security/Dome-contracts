@@ -44,4 +44,6 @@ pub enum Error {
     ThresholdAboveCurators = 18,
     /// Removing this curator would leave fewer curators than the threshold.
     CuratorsBelowThreshold = 19,
+    /// No admin transfer is pending.
+    NoPendingAdmin = 20,
 }

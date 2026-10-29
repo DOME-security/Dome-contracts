@@ -239,28 +239,165 @@ fn removal_is_free_while_bootstrapping() {
 }
 
 #[test]
-fn set_admin_requires_both_old_and_new_admin() {
+fn admin_transfer_takes_two_steps() {
+    let s = setup_mocked();
+    let new_admin = Address::generate(&s.env);
+    assert_eq!(s.client.pending_admin(), None);
+
+    s.client.transfer_admin(&new_admin);
+    assert_eq!(
+        s.env.events().all(),
+        [events::AdminTransferStarted {
+            admin: s.admin.clone(),
+            pending: new_admin.clone(),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(s.env.auths()[0].0, s.admin);
+    // Nothing changes until the new admin accepts.
+    assert_eq!(s.client.admin(), s.admin);
+    assert_eq!(s.client.pending_admin(), Some(new_admin.clone()));
+
+    s.client.accept_admin();
+    assert_eq!(
+        s.env.events().all(),
+        [events::AdminChanged {
+            old: s.admin.clone(),
+            new: new_admin.clone(),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(
+        s.env.auths(),
+        [(
+            new_admin.clone(),
+            AuthorizedInvocation {
+                function: AuthorizedFunction::Contract((
+                    s.client.address.clone(),
+                    Symbol::new(&s.env, "accept_admin"),
+                    ().into_val(&s.env),
+                )),
+                sub_invocations: [].into(),
+            }
+        )]
+    );
+    assert_eq!(s.client.admin(), new_admin);
+    assert_eq!(s.client.pending_admin(), None);
+}
+
+#[test]
+fn old_admin_loses_power_after_transfer() {
     let s = setup();
     let new_admin = Address::generate(&s.env);
+    s.env.mock_all_auths();
+    s.client.transfer_admin(&new_admin);
+    s.client.accept_admin();
 
-    // Only the old admin signs: rejected.
+    let curator = Address::generate(&s.env);
     s.env.mock_auths(&[MockAuth {
         address: &s.admin,
         invoke: &MockAuthInvoke {
             contract: &s.client.address,
-            fn_name: "set_admin",
-            args: (new_admin.clone(),).into_val(&s.env),
+            fn_name: "add_curator",
+            args: (curator.clone(),).into_val(&s.env),
             sub_invokes: &[],
         },
     }]);
-    assert!(s.client.try_set_admin(&new_admin).is_err());
-    assert_eq!(s.client.admin(), s.admin);
+    assert!(s.client.try_add_curator(&curator).is_err());
+}
 
+#[test]
+fn transfer_admin_signed_by_non_admin_fails() {
+    let s = setup();
+    let intruder = Address::generate(&s.env);
+    s.env.mock_auths(&[MockAuth {
+        address: &intruder,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "transfer_admin",
+            args: (intruder.clone(),).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_transfer_admin(&intruder).is_err());
+    assert_eq!(s.client.pending_admin(), None);
+}
+
+#[test]
+fn only_the_pending_admin_can_accept() {
+    let s = setup();
+    let new_admin = Address::generate(&s.env);
     s.env.mock_all_auths();
-    s.client.set_admin(&new_admin);
-    let signers: std::vec::Vec<Address> = s.env.auths().into_iter().map(|(a, _)| a).collect();
-    assert_eq!(signers, [s.admin.clone(), new_admin.clone()]);
-    assert_eq!(s.client.admin(), new_admin);
+    s.client.transfer_admin(&new_admin);
+
+    // No signature.
+    s.env.set_auths(&[]);
+    assert!(s.client.try_accept_admin().is_err());
+
+    // Signed by the current admin instead of the pending one.
+    s.env.mock_auths(&[MockAuth {
+        address: &s.admin,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "accept_admin",
+            args: ().into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_accept_admin().is_err());
+    assert_eq!(s.client.admin(), s.admin);
+    assert_eq!(s.client.pending_admin(), Some(new_admin));
+}
+
+#[test]
+fn accept_or_cancel_without_pending_transfer_fails() {
+    let s = setup_mocked();
+    assert_eq!(s.client.try_accept_admin(), Err(Ok(Error::NoPendingAdmin)));
+    assert_eq!(
+        s.client.try_cancel_admin_transfer(),
+        Err(Ok(Error::NoPendingAdmin))
+    );
+}
+
+#[test]
+fn admin_can_cancel_and_replace_an_offer() {
+    let s = setup_mocked();
+    let first = Address::generate(&s.env);
+    let second = Address::generate(&s.env);
+    s.client.transfer_admin(&first);
+    s.client.transfer_admin(&second);
+    assert_eq!(s.client.pending_admin(), Some(second.clone()));
+
+    s.client.cancel_admin_transfer();
+    assert_eq!(
+        s.env.events().all(),
+        [events::AdminTransferCancelled {
+            admin: s.admin.clone(),
+            pending: second.clone(),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
+    assert_eq!(s.env.auths()[0].0, s.admin);
+    assert_eq!(s.client.pending_admin(), None);
+    assert_eq!(s.client.try_accept_admin(), Err(Ok(Error::NoPendingAdmin)));
+}
+
+#[test]
+fn cancel_admin_transfer_without_admin_auth_fails() {
+    let s = setup_mocked();
+    let new_admin = Address::generate(&s.env);
+    s.client.transfer_admin(&new_admin);
+    s.env.mock_auths(&[MockAuth {
+        address: &new_admin,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "cancel_admin_transfer",
+            args: ().into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_cancel_admin_transfer().is_err());
+    assert_eq!(s.client.pending_admin(), Some(new_admin));
 }
 
 #[test]
