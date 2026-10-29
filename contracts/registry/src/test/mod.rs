@@ -3,6 +3,7 @@
 
 mod attestations;
 mod indicators;
+mod props;
 mod roles;
 mod ttl;
 mod wasm;
