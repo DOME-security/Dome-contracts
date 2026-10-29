@@ -1,5 +1,8 @@
 use soroban_sdk::{
-    testutils::{storage::Persistent as _, Address as _, Ledger as _},
+    testutils::{
+        storage::{Instance as _, Persistent as _},
+        Address as _, Ledger as _,
+    },
     Address, BytesN,
 };
 
@@ -75,16 +78,75 @@ fn extending_unknown_entries_returns_false() {
 }
 
 #[test]
-fn reads_do_not_extend() {
+fn checking_an_active_indicator_extends_it() {
     let s = setup_mocked();
-    let curator = Address::generate(&s.env);
-    s.client.add_curator(&curator);
+    let c1 = Address::generate(&s.env);
+    let c2 = Address::generate(&s.env);
+    s.client.add_curator(&c1);
+    s.client.add_curator(&c2);
     let i = indicator_input(&s.env, 2);
-    s.client.propose(&curator, &i);
+    s.client.propose(&c1, &i);
+    s.client.approve(&c2, &i.hash);
 
     advance(&s, TTL_EXTEND_TO - TTL_THRESHOLD + 1);
-    let before = ttl(&s, &DataKey::Indicator(i.hash.clone()));
-    s.client.is_known_bad(&i.hash);
+    assert!(ttl(&s, &DataKey::Indicator(i.hash.clone())) < TTL_THRESHOLD);
+    assert!(s.client.is_known_bad(&i.hash));
+    assert_eq!(ttl(&s, &DataKey::Indicator(i.hash.clone())), TTL_EXTEND_TO);
+}
+
+#[test]
+fn latest_extends_the_newest_attestation_only() {
+    let s = setup_mocked();
+    let attester = Address::generate(&s.env);
+    s.client.add_attester(&attester);
+    let a = attestation_input(&s.env, 1, "clean");
+    s.client.attest(&attester, &a);
+    s.client.attest(&attester, &a);
+
+    advance(&s, TTL_EXTEND_TO - TTL_THRESHOLD + 1);
+    let old = ttl(&s, &DataKey::Attest(a.repo.clone(), 0));
+    s.client.latest(&a.repo);
+    assert_eq!(ttl(&s, &DataKey::Attest(a.repo.clone(), 1)), TTL_EXTEND_TO);
+    assert_eq!(
+        ttl(&s, &DataKey::AttestCount(a.repo.clone())),
+        TTL_EXTEND_TO
+    );
+    // Older history is left to expire.
+    assert_eq!(ttl(&s, &DataKey::Attest(a.repo.clone(), 0)), old);
+}
+
+#[test]
+fn other_reads_do_not_extend() {
+    let s = setup_mocked();
+    let curator = Address::generate(&s.env);
+    let attester = Address::generate(&s.env);
+    s.client.add_curator(&curator);
+    s.client.add_attester(&attester);
+    let i = indicator_input(&s.env, 2);
+    s.client.propose(&curator, &i);
+    let a = attestation_input(&s.env, 1, "clean");
+    s.client.attest(&attester, &a);
+
+    advance(&s, TTL_EXTEND_TO - TTL_THRESHOLD + 1);
+    let ind_before = ttl(&s, &DataKey::Indicator(i.hash.clone()));
+    let att_before = ttl(&s, &DataKey::Attest(a.repo.clone(), 0));
+    // A proposed indicator is not in use yet.
+    assert!(!s.client.is_known_bad(&i.hash));
     s.client.indicator(&i.hash);
-    assert_eq!(ttl(&s, &DataKey::Indicator(i.hash.clone())), before);
+    s.client.history(&a.repo, &0, &10);
+    s.client.attestation_count(&a.repo);
+    assert_eq!(ttl(&s, &DataKey::Indicator(i.hash.clone())), ind_before);
+    assert_eq!(ttl(&s, &DataKey::Attest(a.repo.clone(), 0)), att_before);
+}
+
+#[test]
+fn writes_and_extensions_keep_the_instance_alive() {
+    let s = setup_mocked();
+    advance(&s, TTL_EXTEND_TO - TTL_THRESHOLD + 1);
+    s.client
+        .extend_indicator(&BytesN::from_array(&s.env, &[0xee; 32]));
+    let ttl = s
+        .env
+        .as_contract(&s.client.address, || s.env.storage().instance().get_ttl());
+    assert_eq!(ttl, TTL_EXTEND_TO);
 }

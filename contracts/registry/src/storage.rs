@@ -10,10 +10,12 @@ pub const MIN_THRESHOLD: u32 = 2;
 /// Largest page returned by `history`.
 pub const MAX_PAGE: u32 = 50;
 
-// TTL policy: every write extends the entries it touches, and anyone can pay
-// to keep an entry alive with `extend_repo` / `extend_indicator`. Reads never
-// extend, so checking the registry costs nothing beyond simulation. Archived
-// entries are restored automatically by the network when next accessed.
+// TTL policy (docs/ttl.md): every write extends the entries it touches, and
+// so do the two "in use" reads, `latest` and `is_known_bad` (active only).
+// Anyone can pay to keep an entry alive with `extend_repo` /
+// `extend_indicator`. Extensions in simulated reads are never committed, so
+// a simulated check stays free. Archived entries are restored automatically
+// by the network when next accessed.
 
 /// ~5 second ledgers.
 const DAY_IN_LEDGERS: u32 = 17_280;

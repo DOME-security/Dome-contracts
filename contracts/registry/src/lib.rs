@@ -186,6 +186,7 @@ impl DomeRegistry {
     /// Replaces the contract code. Storage and the contract id are kept.
     pub fn upgrade(env: Env, wasm_hash: BytesN<32>) {
         storage::admin(&env).require_auth();
+        storage::extend_instance(&env);
         env.deployer()
             .update_current_contract(ContractExecutable::Wasm(wasm_hash.clone()));
         events::Upgraded { wasm_hash }.publish(&env);
@@ -237,11 +238,18 @@ impl DomeRegistry {
         Ok(index)
     }
 
+    /// Newest attestation for `repo`, retracted or not. A repo that is
+    /// being looked up is in use, so this also extends the TTL of its count
+    /// and newest attestation (a no-op in simulation, which commits nothing).
     pub fn latest(env: Env, repo: BytesN<32>) -> Option<Attestation> {
-        match storage::attest_count(&env, &repo) {
-            0 => None,
-            n => storage::attestation(&env, &repo, n - 1),
+        let n = storage::attest_count(&env, &repo);
+        if n == 0 {
+            return None;
         }
+        let att = storage::attestation(&env, &repo, n - 1);
+        storage::extend_instance(&env);
+        storage::extend_repo(&env, &repo);
+        att
     }
 
     pub fn attestation_count(env: Env, repo: BytesN<32>) -> u32 {
@@ -425,9 +433,15 @@ impl DomeRegistry {
     }
 
     /// True only for `active` indicators. Proposed and retracted ones are not
-    /// known bad.
+    /// known bad. An active indicator that is being checked is in use, so
+    /// this also extends its TTL.
     pub fn is_known_bad(env: Env, hash: BytesN<32>) -> bool {
-        storage::indicator(&env, &hash).is_some_and(|i| i.status == STATUS_ACTIVE)
+        let active = storage::indicator(&env, &hash).is_some_and(|i| i.status == STATUS_ACTIVE);
+        if active {
+            storage::extend_instance(&env);
+            storage::extend_indicator(&env, &hash);
+        }
+        active
     }
 
     pub fn indicator(env: Env, hash: BytesN<32>) -> Option<Indicator> {
