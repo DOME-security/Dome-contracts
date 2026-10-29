@@ -17,7 +17,13 @@ source "$(dirname "$0")/common.sh"
 
 require_stellar
 require_test_network
-for v in CONTRACT_ID ADMIN_SOURCE CURATOR1 CURATOR2 ATTESTER; do require_var "$v"; done
+require_var CONTRACT_ID
+for v in ADMIN_SOURCE CURATOR1 CURATOR2 ATTESTER; do
+  require_var "$v"
+  require_safe_identity "${!v}"
+done
+
+echo "Seeding DEMO data: inert fixtures, campaign 'demo'. Not real indicators." >&2
 
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 sha_str() { printf '%s' "$1" | sha256sum | cut -d' ' -f1; }
@@ -51,6 +57,10 @@ done
 
 repo="$(sha_str "github.com/dome-security/demo-repo")"
 commit="$(sha_str "dome-demo-commit" | cut -c1-40)"
+if [[ "$(invoke "$ATTESTER" attestation_count --repo "$repo")" != "0" ]]; then
+  echo "skip attestation: demo repo $repo already has one"
+  exit 0
+fi
 invoke "$ATTESTER" attest --attester "$att" \
   --a "{\"repo\":\"$repo\",\"commit\":\"$commit\",\"verdict\":\"clean\",\"scanner\":1,\"rules\":\"$evidence\",\"report\":\"$evidence\"}"
 echo "seeded clean attestation for demo repo $repo"
