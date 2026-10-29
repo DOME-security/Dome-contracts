@@ -91,9 +91,14 @@ impl DomeRegistry {
         .publish(&env);
     }
 
+    /// Sets M in the M-of-N approval rule. M must be at least 2 and at most
+    /// the current number of curators.
     pub fn set_threshold(env: Env, threshold: u32) -> Result<(), Error> {
         storage::admin(&env).require_auth();
         storage::set_threshold(&env, threshold)?;
+        if threshold > storage::curator_count(&env) {
+            return Err(Error::ThresholdAboveCurators);
+        }
         storage::extend_instance(&env);
         events::ThresholdChanged { threshold }.publish(&env);
         Ok(())
@@ -108,6 +113,9 @@ impl DomeRegistry {
         )
     }
 
+    /// Removes a curator. Once there are at least `threshold` curators, a
+    /// removal that would take the count below the threshold is rejected:
+    /// add the replacement first, then remove.
     pub fn remove_curator(env: Env, curator: Address) -> Result<(), Error> {
         Self::revoke(
             &env,
@@ -133,6 +141,10 @@ impl DomeRegistry {
             DataKey::Attester(attester.clone()),
             attester,
         )
+    }
+
+    pub fn curator_count(env: Env) -> u32 {
+        storage::curator_count(&env)
     }
 
     pub fn is_curator(env: Env, account: Address) -> bool {
@@ -404,6 +416,9 @@ impl DomeRegistry {
     fn grant(env: &Env, role: Symbol, key: DataKey, account: Address) -> Result<(), Error> {
         storage::admin(env).require_auth();
         storage::grant_role(env, &key)?;
+        if role == ROLE_CURATOR {
+            storage::set_curator_count(env, storage::curator_count(env) + 1);
+        }
         storage::extend_instance(env);
         events::RoleGranted { role, account }.publish(env);
         Ok(())
@@ -412,6 +427,17 @@ impl DomeRegistry {
     fn revoke(env: &Env, role: Symbol, key: DataKey, account: Address) -> Result<(), Error> {
         storage::admin(env).require_auth();
         storage::revoke_role(env, &key)?;
+        if role == ROLE_CURATOR {
+            let threshold = storage::threshold(env);
+            let before = storage::curator_count(env);
+            let after = before.saturating_sub(1);
+            // While bootstrapping (fewer curators than the threshold) removal
+            // is free; after that the set never drops below the threshold.
+            if before >= threshold && after < threshold {
+                return Err(Error::CuratorsBelowThreshold);
+            }
+            storage::set_curator_count(env, after);
+        }
         storage::extend_instance(env);
         events::RoleRevoked { role, account }.publish(env);
         Ok(())

@@ -91,6 +91,8 @@ fn single_curator_cannot_activate_alone() {
 #[test]
 fn approvals_from_removed_curators_do_not_count() {
     let (s, [c1, c2, c3]) = with_curators();
+    let c4 = Address::generate(&s.env);
+    s.client.add_curator(&c4);
     s.client.set_threshold(&3);
     let i = indicator_input(&s.env, 1);
     s.client.propose(&c1, &i);
@@ -99,6 +101,8 @@ fn approvals_from_removed_curators_do_not_count() {
     s.client.approve(&c3, &i.hash);
     // c2 and c3 are valid, c1 is not: 2 of 3 needed.
     assert!(!s.client.is_known_bad(&i.hash));
+    s.client.approve(&c4, &i.hash);
+    assert!(s.client.is_known_bad(&i.hash));
 }
 
 #[test]

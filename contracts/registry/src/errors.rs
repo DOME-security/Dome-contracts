@@ -40,4 +40,8 @@ pub enum Error {
     AttestationRetracted = 16,
     /// Only the original attester or the admin may retract an attestation.
     NotAllowedToRetract = 17,
+    /// Threshold is above the number of curators, so nothing could activate.
+    ThresholdAboveCurators = 18,
+    /// Removing this curator would leave fewer curators than the threshold.
+    CuratorsBelowThreshold = 19,
 }

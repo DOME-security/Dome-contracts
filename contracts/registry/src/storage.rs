@@ -28,6 +28,8 @@ pub enum DataKey {
     // instance
     Admin,
     Threshold,
+    /// Number of addresses holding the curator role.
+    CuratorCount,
     // persistent
     Curator(Address),
     Attester(Address),
@@ -71,6 +73,17 @@ pub fn set_threshold(env: &Env, threshold: u32) -> Result<(), Error> {
         .instance()
         .set(&DataKey::Threshold, &threshold);
     Ok(())
+}
+
+pub fn curator_count(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::CuratorCount)
+        .unwrap_or(0)
+}
+
+pub fn set_curator_count(env: &Env, n: u32) {
+    env.storage().instance().set(&DataKey::CuratorCount, &n);
 }
 
 pub fn has_role(env: &Env, key: &DataKey) -> bool {

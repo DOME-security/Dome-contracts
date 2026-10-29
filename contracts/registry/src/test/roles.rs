@@ -135,9 +135,20 @@ fn roles_are_independent() {
     assert!(!s.client.is_curator(&a));
 }
 
+/// Admin with `n` curators added.
+fn with_curators<'a>(n: usize) -> (super::Setup<'a>, std::vec::Vec<Address>) {
+    let s = setup_mocked();
+    let c: std::vec::Vec<Address> = (0..n).map(|_| Address::generate(&s.env)).collect();
+    for x in &c {
+        s.client.add_curator(x);
+    }
+    (s, c)
+}
+
 #[test]
 fn set_threshold_requires_admin_and_minimum() {
-    let s = setup();
+    let (s, _) = with_curators(3);
+    s.env.set_auths(&[]);
     assert!(s.client.try_set_threshold(&3).is_err());
 
     s.env.mock_all_auths();
@@ -146,11 +157,85 @@ fn set_threshold_requires_admin_and_minimum() {
         s.env.events().all(),
         [events::ThresholdChanged { threshold: 3 }.to_xdr(&s.env, &s.client.address)]
     );
+    assert_eq!(s.env.auths()[0].0, s.admin);
     assert_eq!(s.client.threshold(), 3);
     assert_eq!(
         s.client.try_set_threshold(&1),
         Err(Ok(Error::InvalidThreshold))
     );
+    assert_eq!(
+        s.client.try_set_threshold(&0),
+        Err(Ok(Error::InvalidThreshold))
+    );
+}
+
+#[test]
+fn set_threshold_signed_by_non_admin_fails() {
+    let (s, _) = with_curators(3);
+    let intruder = Address::generate(&s.env);
+    s.env.mock_auths(&[MockAuth {
+        address: &intruder,
+        invoke: &MockAuthInvoke {
+            contract: &s.client.address,
+            fn_name: "set_threshold",
+            args: (3u32,).into_val(&s.env),
+            sub_invokes: &[],
+        },
+    }]);
+    assert!(s.client.try_set_threshold(&3).is_err());
+    assert_eq!(s.client.threshold(), 2);
+}
+
+#[test]
+fn threshold_cannot_exceed_curator_count() {
+    let (s, _) = with_curators(2);
+    assert_eq!(s.client.curator_count(), 2);
+    assert_eq!(
+        s.client.try_set_threshold(&3),
+        Err(Ok(Error::ThresholdAboveCurators))
+    );
+    s.client.set_threshold(&2);
+    assert_eq!(s.client.threshold(), 2);
+}
+
+#[test]
+fn curator_count_follows_grants_and_revocations() {
+    let (s, c) = with_curators(3);
+    assert_eq!(s.client.curator_count(), 3);
+    s.client.remove_curator(&c[0]);
+    assert_eq!(s.client.curator_count(), 2);
+    // Attesters don't count.
+    s.client.add_attester(&Address::generate(&s.env));
+    assert_eq!(s.client.curator_count(), 2);
+    // A failed grant or revoke leaves the count alone.
+    assert!(s.client.try_add_curator(&c[1]).is_err());
+    assert!(s.client.try_remove_curator(&c[0]).is_err());
+    assert_eq!(s.client.curator_count(), 2);
+}
+
+#[test]
+fn removal_cannot_take_curators_below_threshold() {
+    let (s, c) = with_curators(3);
+    s.client.set_threshold(&3);
+    assert_eq!(
+        s.client.try_remove_curator(&c[0]),
+        Err(Ok(Error::CuratorsBelowThreshold))
+    );
+    assert!(s.client.is_curator(&c[0]));
+
+    // Rotation: add the replacement first, then remove.
+    s.client.add_curator(&Address::generate(&s.env));
+    s.client.remove_curator(&c[0]);
+    assert_eq!(s.client.curator_count(), 3);
+}
+
+#[test]
+fn removal_is_free_while_bootstrapping() {
+    // One curator, threshold 2: the registry can't activate anything yet, so
+    // a mistaken grant can be undone.
+    let (s, c) = with_curators(1);
+    s.client.remove_curator(&c[0]);
+    assert_eq!(s.client.curator_count(), 0);
 }
 
 #[test]
