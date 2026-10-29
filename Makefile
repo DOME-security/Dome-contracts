@@ -32,11 +32,7 @@ audit:
 bindings: build
 	./scripts/bindings.sh
 
-check-# Needs cargo-audit; ignored advisories are explained in .cargo/audit.toml.
-audit:
-	cargo audit
-
-bindings: build
+check-bindings: build
 	./scripts/bindings.sh --check
 
 clean:
