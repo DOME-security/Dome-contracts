@@ -153,7 +153,7 @@ export const Error = {
    */
   10 : { message: "InvalidKind" },
   /**
-   * An indicator with this hash already exists (retracted ones included).
+   * A proposed or active indicator with this hash already exists.
    */
   11 : { message: "IndicatorExists" },
   /**
@@ -179,7 +179,19 @@ export const Error = {
   /**
    * Only the original attester or the admin may retract an attestation.
    */
-  17 : { message: "NotAllowedToRetract" }
+  17 : { message: "NotAllowedToRetract" },
+  /**
+   * Threshold is above the number of curators, so nothing could activate.
+   */
+  18 : { message: "ThresholdAboveCurators" },
+  /**
+   * Removing this curator would leave fewer curators than the threshold.
+   */
+  19 : { message: "CuratorsBelowThreshold" },
+  /**
+   * No admin transfer is pending.
+   */
+  20 : { message: "NoPendingAdmin" }
 }
 
 /**
@@ -237,6 +249,19 @@ export interface UpgradedEvent {
 }
 
 /**
+ * An indicator reached the approval threshold and is now `active`, i.e.
+ * `is_known_bad` returns true. Emitted right after the `approve` event that
+ * caused it. `approvals` counts approvals from current curators.
+ */
+export interface ActivatedEvent {
+  name: "Activated";
+  data: {
+    hash: Uint8Array;
+    approvals?: number;
+  };
+}
+
+/**
  * A curator retracted an indicator. `reason` is the hash of the public
  * retraction notice.
  */
@@ -272,7 +297,7 @@ export interface RoleRevokedEvent {
 }
 
 /**
- * Event: AdminChanged
+ * `new` accepted the admin role from `old` (step 2 of 2).
  */
 export interface AdminChangedEvent {
   name: "AdminChanged";
@@ -293,6 +318,17 @@ export interface ThresholdChangedEvent {
 }
 
 /**
+ * The admin offered its role to `pending` (step 1 of 2).
+ */
+export interface AdminTransferStartedEvent {
+  name: "AdminTransferStarted";
+  data: {
+    admin?: string;
+    pending?: string;
+  };
+}
+
+/**
  * An attestation was retracted by its attester or the admin. `reason` is
  * the hash of the public retraction notice.
  */
@@ -305,5 +341,16 @@ export interface AttestationRetractedEvent {
     reason?: Uint8Array;
   };
 }
-    export type ContractEvent = ApprovedEvent | AttestedEvent | ProposedEvent | UpgradedEvent | RetractedEvent | RoleGrantedEvent | RoleRevokedEvent | AdminChangedEvent | ThresholdChangedEvent | AttestationRetractedEvent;
+
+/**
+ * The admin withdrew its offer to `pending`.
+ */
+export interface AdminTransferCancelledEvent {
+  name: "AdminTransferCancelled";
+  data: {
+    admin?: string;
+    pending?: string;
+  };
+}
+    export type ContractEvent = ApprovedEvent | AttestedEvent | ProposedEvent | UpgradedEvent | ActivatedEvent | RetractedEvent | RoleGrantedEvent | RoleRevokedEvent | AdminChangedEvent | ThresholdChangedEvent | AdminTransferStartedEvent | AttestationRetractedEvent | AdminTransferCancelledEvent;
     
