@@ -48,13 +48,20 @@ fn proposal_is_not_known_bad_until_threshold() {
     s.client.approve(&c2, &i.hash);
     assert_eq!(
         s.env.events().all(),
-        [events::Approved {
-            hash: i.hash.clone(),
-            curator: c2.clone(),
-            approvals: 2,
-            status: symbol_short!("active"),
-        }
-        .to_xdr(&s.env, &s.client.address)]
+        [
+            events::Approved {
+                hash: i.hash.clone(),
+                curator: c2.clone(),
+                approvals: 2,
+                status: symbol_short!("active"),
+            }
+            .to_xdr(&s.env, &s.client.address),
+            events::Activated {
+                hash: i.hash.clone(),
+                approvals: 2,
+            }
+            .to_xdr(&s.env, &s.client.address)
+        ]
     );
     assert_eq!(s.env.auths()[0].0, c2);
     assert!(s.client.is_known_bad(&i.hash));
@@ -71,8 +78,20 @@ fn higher_threshold_needs_more_approvals() {
     let i = indicator_input(&s.env, 1);
     s.client.propose(&c1, &i);
     s.client.approve(&c2, &i.hash);
+    // Below threshold: an approve event and no activate event.
+    assert_eq!(
+        s.env.events().all(),
+        [events::Approved {
+            hash: i.hash.clone(),
+            curator: c2.clone(),
+            approvals: 2,
+            status: symbol_short!("proposed"),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
     assert!(!s.client.is_known_bad(&i.hash));
     s.client.approve(&c3, &i.hash);
+    assert_eq!(s.env.events().all().events().len(), 2);
     assert!(s.client.is_known_bad(&i.hash));
 }
 
@@ -303,6 +322,17 @@ fn approving_an_active_indicator_records_support() {
     s.client.propose(&c1, &i);
     s.client.approve(&c2, &i.hash);
     s.client.approve(&c3, &i.hash);
+    // Only an approve event: the indicator was already active.
+    assert_eq!(
+        s.env.events().all(),
+        [events::Approved {
+            hash: i.hash.clone(),
+            curator: c3.clone(),
+            approvals: 3,
+            status: symbol_short!("active"),
+        }
+        .to_xdr(&s.env, &s.client.address)]
+    );
     let stored = s.client.indicator(&i.hash).unwrap();
     assert_eq!(stored.status, symbol_short!("active"));
     assert_eq!(stored.approvals.len(), 3);

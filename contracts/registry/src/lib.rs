@@ -372,18 +372,26 @@ impl DomeRegistry {
             .iter()
             .filter(|a| storage::has_role(&env, &DataKey::Curator(a.clone())))
             .count() as u32;
-        if ind.status == STATUS_PROPOSED && valid >= storage::threshold(&env) {
+        let activated = ind.status == STATUS_PROPOSED && valid >= storage::threshold(&env);
+        if activated {
             ind.status = STATUS_ACTIVE;
         }
         storage::set_indicator(&env, &ind);
         storage::extend_instance(&env);
         events::Approved {
-            hash,
+            hash: hash.clone(),
             curator,
             approvals: valid,
             status: ind.status,
         }
         .publish(&env);
+        if activated {
+            events::Activated {
+                hash,
+                approvals: valid,
+            }
+            .publish(&env);
+        }
         Ok(())
     }
 

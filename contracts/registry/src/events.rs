@@ -110,6 +110,17 @@ pub struct Approved {
     pub status: Symbol,
 }
 
+/// An indicator reached the approval threshold and is now `active`, i.e.
+/// `is_known_bad` returns true. Emitted right after the `approve` event that
+/// caused it. `approvals` counts approvals from current curators.
+#[contractevent(topics = ["activate"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Activated {
+    #[topic]
+    pub hash: BytesN<32>,
+    pub approvals: u32,
+}
+
 /// A curator retracted an indicator. `reason` is the hash of the public
 /// retraction notice.
 #[contractevent(topics = ["retract"])]
