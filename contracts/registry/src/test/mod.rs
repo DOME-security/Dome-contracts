@@ -5,6 +5,7 @@ mod attestations;
 mod indicators;
 mod roles;
 mod ttl;
+mod wasm;
 
 use soroban_sdk::{testutils::Address as _, Address, Bytes, BytesN, Env, Symbol};
 
