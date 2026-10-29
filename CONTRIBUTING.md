@@ -17,15 +17,27 @@ You need Rust (the toolchain in `rust-toolchain.toml` is installed automatically
 ```bash
 make lint        # rustfmt check + clippy with warnings as errors
 make test        # unit tests, no stellar-cli needed
-make test-wasm   # builds the Wasm with stellar-cli, then runs every test
+make test-wasm   # builds the Wasm with stellar-cli, then also runs upgrade, budget and size tests
+make audit       # cargo audit (install cargo-audit first)
 ```
+
+## Testing requirements
+
+A PR that touches `contracts/` must keep `make lint`, `make test` and `make test-wasm` green, and:
+
+- **Every `require_auth` path has three tests:** the allowed path, which asserts the signer with `env.auths()`; no signature (`env.set_auths(&[])`); and a signature from the wrong address (`env.mock_auths` with another address). A role check also needs a test where a signed non-role-holder gets the role error. See `test/roles.rs` for the pattern.
+- **Every rejected input has a test** asserting the exact error code (`Err(Ok(Error::...))`), including edges: zero, the limit, limit + 1, duplicates.
+- **Every write asserts its events** with `env.events().all()` against the `#[contractevent]` struct.
+- **State-machine changes** (roles, threshold, propose/approve/retract) must extend the model in `test/props.rs` so the property test keeps checking them.
+- **Budgets:** if `test/wasm.rs` fails a CPU, memory, read or size budget, either make the change cheaper or raise the budget in both `test/wasm.rs` and `docs/resources.md`, with the reason in the PR.
+- **Storage changes** must keep the upgrade test in `test/wasm.rs` passing, or ship a migration and note it in `docs/deployments.md`.
 
 ## Rules for PRs
 
-- **Auth tests.** Every `require_auth` needs a test for the allowed path and for the rejected path: no signature, and a signature from the wrong address.
-- **Events.** Every write emits an event. Assert the event in the test for that write.
-- **Error codes are an interface.** Append new `Error` variants; never renumber existing ones.
-- **No secrets.** No real secret keys in code, tests, scripts or CI logs. Don't commit `.env` files or Stellar identity files.
+- **Interfaces are shared.** dome-backend and dome-frontend depend on the bindings, events and error codes. Changing the contract interface means regenerating the bindings (`make bindings`) and updating `docs/events.md` / `docs/errors.md` in the same PR.
+- **Error codes and events are append-only.** Add new `Error` variants with the next number; never renumber or reuse one. Never change an existing event's name, topics or fields.
+- **No secrets.** No real secret keys in code, tests, scripts or CI logs. Don't commit `.env` files or Stellar identity files. Scripts take CLI identity names created with `--secure-store`, never raw keys.
+- **Testnet only.** Never deploy to mainnet; the contract is testnet-only until independently reviewed.
 - **No real malware.** Use hashes from public advisories, or inert fixtures like `scripts/fixtures/` that only `echo DOME_FIXTURE`.
 - **No install scripts.** No `preinstall`, `install`, `postinstall` or `prepare` in any `package.json`. Install JavaScript dependencies with `--ignore-scripts`.
 - **No `.vscode/tasks.json`.** CI rejects it.
