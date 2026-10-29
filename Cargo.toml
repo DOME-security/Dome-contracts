@@ -6,7 +6,7 @@ members = ["contracts/*"]
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/DOME-security/Dome-contracts"
-rust-version = "1.84"
+rust-version = "1.91"
 
 [workspace.dependencies]
 soroban-sdk = "29.0.1"
