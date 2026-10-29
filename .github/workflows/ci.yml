@@ -64,6 +64,20 @@ jobs:
       - run: make lint
       - run: make test
 
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Prebuilt cargo-audit, checksum-verified by the action.
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-audit@0.22.2
+      # Ignored advisories, each with a reason, are in .cargo/audit.toml.
+      - run: cargo audit
+
   wasm:
     name: Build Wasm and check bindings
     runs-on: ubuntu-latest
@@ -90,10 +104,16 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "22"
-      - name: Build and run all tests, including the upgrade test
+      # Includes the upgrade test, the resource budgets and the 32 KiB Wasm
+      # size limit, which all need the built Wasm.
+      - name: Build and run all tests against the Wasm
         run: make test-wasm
-      - name: Report Wasm size
-        run: ls -l target/wasm32v1-none/release/dome_registry.wasm
+      - name: Report Wasm size and hash
+        run: |
+          wasm=target/wasm32v1-none/release/dome_registry.wasm
+          echo "### Wasm" >> "$GITHUB_STEP_SUMMARY"
+          echo "size: $(stat -c %s "$wasm") bytes (limit 32768)" >> "$GITHUB_STEP_SUMMARY"
+          echo "sha256: $(sha256sum "$wasm" | cut -d' ' -f1)" >> "$GITHUB_STEP_SUMMARY"
       - name: Check committed bindings are current
         if: hashFiles('bindings/ts/package.json') != ''
         run: ./scripts/bindings.sh --check

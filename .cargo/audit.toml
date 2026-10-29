@@ -1,0 +1,11 @@
+# cargo audit configuration. Every ignored advisory needs a reason and a
+# condition for removing it.
+[advisories]
+ignore = [
+  # crypto-bigint 0.5: timing variability. Reached only through
+  # soroban-env-host (k256, p256), the native host that runs unit tests. It is
+  # not part of the contract Wasm: `cargo tree -p dome-registry --target
+  # wasm32v1-none` has no crypto-bigint. No fixed version is reachable from
+  # soroban-sdk 29. Remove when soroban-sdk moves to elliptic-curve 0.14.
+  "RUSTSEC-2026-0387",
+]
