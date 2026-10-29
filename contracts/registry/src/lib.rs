@@ -283,13 +283,18 @@ impl DomeRegistry {
 
     /// Proposes a fingerprint of a malicious file. The proposer's approval is
     /// counted, so with a threshold of M it needs M-1 more curators.
+    ///
+    /// A retracted hash can be proposed again. The new proposal replaces the
+    /// stored entry and starts over with no approvals but the proposer's; the
+    /// earlier retraction stays in the event log. Without this, one curator
+    /// could retract a hash and keep it out of the registry for good.
     pub fn propose(env: Env, curator: Address, i: IndicatorInput) -> Result<(), Error> {
         curator.require_auth();
         storage::require_role(&env, &DataKey::Curator(curator.clone()), Error::NotCurator)?;
         if !KINDS.contains(&i.kind) {
             return Err(Error::InvalidKind);
         }
-        if storage::indicator(&env, &i.hash).is_some() {
+        if storage::indicator(&env, &i.hash).is_some_and(|old| old.status != STATUS_RETRACTED) {
             return Err(Error::IndicatorExists);
         }
 

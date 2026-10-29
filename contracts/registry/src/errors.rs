@@ -26,7 +26,7 @@ pub enum Error {
     NotCurator = 9,
     /// Indicator kind is not one of `task`, `font`, `config`, `script`, `package`.
     InvalidKind = 10,
-    /// An indicator with this hash already exists (retracted ones included).
+    /// A proposed or active indicator with this hash already exists.
     IndicatorExists = 11,
     /// No indicator with this hash.
     IndicatorNotFound = 12,

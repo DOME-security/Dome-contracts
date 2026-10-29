@@ -195,7 +195,7 @@ fn retraction_is_visible_and_final() {
     assert_eq!(stored.retract_reason, Some(reason.clone()));
     assert_eq!(stored.approvals.len(), 2);
 
-    // A retracted hash can't be approved, retracted again or re-proposed.
+    // A retracted indicator can't be approved or retracted again.
     assert_eq!(
         s.client.try_approve(&c3, &i.hash),
         Err(Ok(Error::IndicatorRetracted))
@@ -204,10 +204,44 @@ fn retraction_is_visible_and_final() {
         s.client.try_retract(&c3, &i.hash, &reason),
         Err(Ok(Error::IndicatorRetracted))
     );
+}
+
+#[test]
+fn retracted_hash_can_be_proposed_again_and_needs_full_approval() {
+    let (s, [c1, c2, c3]) = with_curators();
+    let i = indicator_input(&s.env, 1);
+    let reason = BytesN::from_array(&s.env, &[0x44; 32]);
+    s.client.propose(&c1, &i);
+    s.client.approve(&c2, &i.hash);
+    // A rogue curator retracts a good indicator...
+    s.client.retract(&c3, &i.hash, &reason);
+    assert!(!s.client.is_known_bad(&i.hash));
+
+    // ...and it can be restored through the normal M-of-N process.
+    let mut again = i.clone();
+    again.evidence = BytesN::from_array(&s.env, &[0x34; 32]);
+    s.client.propose(&c2, &again);
     assert_eq!(
-        s.client.try_propose(&c3, &i),
-        Err(Ok(Error::IndicatorExists))
+        s.env.events().all(),
+        [events::Proposed {
+            hash: again.hash.clone(),
+            kind: again.kind.clone(),
+            campaign: again.campaign.clone(),
+            evidence: again.evidence.clone(),
+            curator: c2.clone(),
+        }
+        .to_xdr(&s.env, &s.client.address)]
     );
+    let stored = s.client.indicator(&i.hash).unwrap();
+    assert_eq!(stored.status, symbol_short!("proposed"));
+    assert_eq!(stored.approvals.len(), 1);
+    assert_eq!(stored.evidence, again.evidence);
+    assert_eq!(stored.retracted_by, None);
+    assert_eq!(stored.retract_reason, None);
+    assert!(!s.client.is_known_bad(&i.hash));
+
+    s.client.approve(&c1, &i.hash);
+    assert!(s.client.is_known_bad(&i.hash));
 }
 
 #[test]
